@@ -82,7 +82,7 @@ def main():
     train_dataset = AlpacaDataset(
         data=[ex for ex in dataset],
         tokenizer=tokenizer,
-        max_seq_length=1024
+        max_length=1024
     )
     
     train_dataloader = create_dataloader(
