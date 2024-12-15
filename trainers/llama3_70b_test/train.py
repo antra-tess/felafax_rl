@@ -24,7 +24,7 @@ jax.distributed.initialize()
 import numpy as np
 from datasets import load_dataset
 from transformers import AutoTokenizer, LlamaConfig
-from felafax.trainer_engine.data.data import SFTDataset, create_dataloader
+from felafax.trainer_engine.data.data import SFTDataset, create_dataloader, DatasetConfig
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
 
