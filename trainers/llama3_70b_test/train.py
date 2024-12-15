@@ -79,16 +79,24 @@ def main():
         tokenizer.pad_token = tokenizer.eos_token
     
     
+    # Configure and load dataset
+    dataset_config = DatasetConfig(
+        data_source="yahma/alpaca-cleaned",
+        max_seq_length=1024,
+        batch_size=8,
+        num_workers=4
+    )
+    
     # Load dataset
-    dataset = load_dataset("yahma/alpaca-cleaned", split="train")
+    dataset = load_dataset(dataset_config.data_source, split="train")
     train_dataset = AlpacaDataset(
+        config=dataset_config,
         data=[ex for ex in dataset],
-        tokenizer=tokenizer,
-        max_seq_length=1024
+        tokenizer=tokenizer
     )
     
     train_dataloader = create_dataloader(
-        {"batch_size": 8, "num_workers": 4},
+        dataset_config,
         train_dataset,
         shuffle=True
     )
