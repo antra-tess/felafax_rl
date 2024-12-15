@@ -11,6 +11,7 @@ for i in $(seq 0 $((NUM_WORKERS-1))); do
     --worker="$i" -- '
     echo "Creating HuggingFace cache directory in /dev/shm..."
     mkdir -p /dev/shm/huggingface_cache
+    chmod 777 /dev/shm/huggingface_cache
     rm -rf ~/.cache/huggingface
     ln -s /dev/shm/huggingface_cache ~/.cache/huggingface
     echo "HuggingFace cache setup complete on worker $i"
