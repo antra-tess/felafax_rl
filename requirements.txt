@@ -12,8 +12,8 @@ typeguard==2.13.3
 memory_profiler>=0.61.0
 
 # Deep Learning frameworks and core ML
-torch==2.1.2+cpu
-torchvision==0.16.2+cpu
+torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
+torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cpu
 jax==0.4.37
 jaxlib==0.4.36
 equinox==0.11.8
