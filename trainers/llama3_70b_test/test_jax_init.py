@@ -1,39 +1,24 @@
-import os
 import jax
-import logging
+import time
+print("Starting JAX TPU test...")
+print("Waiting for TPU initialization...")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Try to get TPU devices with a timeout
+start_time = time.time()
+timeout = 30  # 30 seconds timeout
 
-def main():
-    logger.info("Starting JAX device test")
-    
-    # Print hostname
-    hostname = os.uname()[1]
-    logger.info(f"Running on host: {hostname}")
-    
-    # Get backend info
-    backend = jax.lib.xla_bridge.get_backend()
-    logger.info(f"JAX backend: {backend}")
-    
-    # Check devices
-    devices = jax.devices()
-    logger.info(f"Number of devices: {len(devices)}")
-    
-    # Print device info
-    for i, dev in enumerate(devices):
-        logger.info(f"Device {i}: {dev}")
-    
-    # Try simple computation
-    logger.info("Attempting simple computation...")
-    x = jax.numpy.ones((2, 2))
-    result = jax.numpy.sum(x)
-    logger.info(f"Test computation result: {result}")
-    
-    logger.info("Test completed successfully!")
+while time.time() - start_time < timeout:
+    try:
+        devices = jax.devices()
+        if devices:
+            print(f"\nFound {len(devices)} devices:")
+            for i, d in enumerate(devices):
+                print(f"Device {i}: {d}")
+            break
+    except:
+        print(".", end="", flush=True)
+        time.sleep(1)
+else:
+    print("\nTimeout waiting for TPU devices")
 
-if __name__ == "__main__":
-    main()
+print("\nTest complete")
