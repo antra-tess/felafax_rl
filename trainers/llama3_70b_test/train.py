@@ -28,17 +28,32 @@ from felafax.trainer_engine.data.data import SFTDataset, create_dataloader
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
 
-class AlpacaDataset(SFTDataset):
-    def apply_format(self, example):
-        instruction = example["instruction"]
-        input_text = example["input"]
-        output = example["output"]
+from dataclasses import dataclass
+from src.felafax.trainer_engine.data.data import DefaultDatasetLoader, DatasetConfig
+
+@dataclass
+class AlpacaDatasetConfig(DatasetConfig):
+    """Configuration for Alpaca dataset."""
+    data_source: str = "yahma/alpaca-cleaned"
+    max_seq_length: int = 1024
+
+class AlpacaDataset(DefaultDatasetLoader):
+    """Alpaca dataset for supervised fine-tuning."""
+    
+    def __init__(self, config: AlpacaDatasetConfig):
+        super().__init__(config)
         
-        prompt = f"Instruction: {instruction}\n"
-        if input_text:
-            prompt += f"Input: {input_text}\n"
-        prompt += "Output: "
-        return prompt, output
+    def setup(self, tokenizer=None):
+        self.tokenizer = tokenizer or self.tokenizer
+        dataset = load_dataset(self.config.data_source, split="train")
+        train_data = [sample for sample in dataset]
+        
+        self.train_dataset = SFTDataset(
+            data=train_data,
+            tokenizer=self.tokenizer,
+            max_seq_length=self.config.max_seq_length
+        )
+        self.val_dataset = None
 
 def main():
     
@@ -77,19 +92,17 @@ def main():
         tokenizer.pad_token = tokenizer.eos_token
     
     
-    # Load dataset
-    dataset = load_dataset("yahma/alpaca-cleaned", split="train")
-    train_dataset = AlpacaDataset(
-        data=[ex for ex in dataset],
-        tokenizer=tokenizer,
-        max_length=1024
+    # Configure and load dataset
+    dataset_config = AlpacaDatasetConfig(
+        data_source="yahma/alpaca-cleaned",
+        max_seq_length=1024,
+        batch_size=8,
+        num_workers=4
     )
+    alpaca_dataset = AlpacaDataset(config=dataset_config)
+    alpaca_dataset.setup(tokenizer=tokenizer)
     
-    train_dataloader = create_dataloader(
-        {"batch_size": 8, "num_workers": 4},
-        train_dataset,
-        shuffle=True
-    )
+    train_dataloader = alpaca_dataset.train_dataloader()
     
     # Initialize and run trainer
     trainer = Trainer(
