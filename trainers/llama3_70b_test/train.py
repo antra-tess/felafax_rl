@@ -76,29 +76,6 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
-    # Configure model
-    model_config = LlamaConfig(
-        vocab_size=32000,
-        hidden_size=8192,
-        intermediate_size=28672,
-        num_hidden_layers=80,
-        num_attention_heads=64,
-        num_key_value_heads=8,
-        max_position_embeddings=4096,
-        rms_norm_eps=1e-5,
-        rope_theta=1e6,
-        lora_rank=trainer_config.lora_rank,
-        lora_alpha=16,  # Hardcoded since not in TrainerConfig
-        use_optimized_decoder=True
-    )
-    
-    # Initialize model
-    model = LlamaForCausalLM(
-        config=model_config,
-        param_dtype=jax.numpy.bfloat16,
-        compute_dtype=jax.numpy.bfloat16,
-        use_optimized_decoder=True
-    )
     
     # Load dataset
     dataset = load_dataset("yahma/alpaca-cleaned", split="train")
@@ -118,9 +95,7 @@ def main():
     trainer = Trainer(
         trainer_config,
         train_dataloader=train_dataloader,
-        val_dataloader=None,
-        model=model,
-        model_config=model_config,
+        val_dataloader=None
     )
     
     trainer.train()
