@@ -87,8 +87,12 @@ def main():
         num_workers=4
     )
     
-    # Load dataset
-    dataset = load_dataset(dataset_config.data_source, split="train")
+    # Load dataset with HF token
+    dataset = load_dataset(
+        dataset_config.data_source,
+        split="train",
+        token=hf_token
+    )
     train_dataset = AlpacaDataset(
         config=dataset_config,
         data=[ex for ex in dataset],
