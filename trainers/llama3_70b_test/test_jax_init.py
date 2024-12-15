@@ -33,14 +33,25 @@ except Exception as e:
 
 print("\nTrying to initialize JAX...")
 try:
-    # Try to initialize JAX and get platform info
-    backend = jax.config.jax_xla_backend
-    print("JAX XLA backend:", backend)
+    # Try to get backend info
+    backend = jax.lib.xla_bridge.get_backend()
+    print("Backend:", backend)
     print("JAX version:", jax.__version__)
     
     # Try to get platform info
-    platform = jax.default_backend()
-    print("Default platform:", platform)
+    platform = backend.platform
+    print("Platform:", platform)
+    
+    # Print XLA flags
+    from jax.config import config
+    print("\nJAX config flags:")
+    for name in dir(config):
+        if name.startswith('jax_'):
+            try:
+                value = getattr(config, name)
+                print(f"{name}: {value}")
+            except:
+                pass
 except Exception as e:
     print("Error initializing JAX:", str(e))
 
