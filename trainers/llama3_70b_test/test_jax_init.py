@@ -36,24 +36,22 @@ try:
     # Set JAX environment variables
     os.environ['JAX_PLATFORMS'] = 'tpu'
     os.environ['JAX_BACKEND_TARGET'] = 'libtpu'
-    os.environ['PJRT_DEVICE'] = 'TPU'
     print("Set JAX environment variables")
     
-    # Try direct TPU initialization
+    # Try to initialize JAX TPU runtime
     print("\nTrying TPU initialization...")
-    from jax.config import config
-    config.update('jax_platform_name', 'tpu')
-    config.update('jax_xla_backend', 'tpu')
-    print("JAX config updated for TPU")
+    import jax.tools.colab_tpu
+    jax.tools.colab_tpu.setup_tpu()
+    print("TPU runtime initialized")
     
-    # Try to initialize backend
+    # Try to get backend info
     print("\nGetting backend information...")
     backend = jax.extend.backend.get_backend()
     print("Backend:", backend)
     print("JAX version:", jax.__version__)
     
     # Try to get platform info
-    platform = backend.platform
+    platform = backend.platform_name
     print("Platform:", platform)
     
 except Exception as e:
