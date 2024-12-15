@@ -52,8 +52,11 @@ def main():
         lora_rank=8,
     )
     
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_name)
+    # Load tokenizer with HF token
+    tokenizer = AutoTokenizer.from_pretrained(
+        trainer_config.model_name,
+        token=os.environ.get('HF_TOKEN')
+    )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
