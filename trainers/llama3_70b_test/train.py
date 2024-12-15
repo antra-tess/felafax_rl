@@ -59,9 +59,18 @@ def main():
     )
     
     # Load tokenizer with HF token
+    hf_token = os.environ.get('HF_TOKEN')
+    if not hf_token:
+        raise ValueError("HF_TOKEN environment variable is not set")
+    
+    # Update trainer config with token
+    trainer_config.hf_token = hf_token
+    
+    # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         trainer_config.model_name,
-        token=os.environ.get('HF_TOKEN')
+        token=hf_token,
+        use_auth_token=hf_token  # Add this for older transformers versions
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
