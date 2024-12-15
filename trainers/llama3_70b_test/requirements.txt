@@ -1,5 +1,5 @@
 datasets
 transformers
-jax[tpu]>=0.4.13
-jaxlib
+--find-links https://storage.googleapis.com/jax-releases/libtpu_releases.html
+jax[tpu]
 equinox
