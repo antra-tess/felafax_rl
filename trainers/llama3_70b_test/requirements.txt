@@ -1,2 +1,5 @@
 datasets
 transformers
+jax[tpu]>=0.4.13
+jaxlib
+equinox
