@@ -31,34 +31,35 @@ try:
 except Exception as e:
     print("Error loading TPU library:", str(e))
 
-print("\nTrying to initialize JAX...")
+print("\nSetting up JAX environment...")
 try:
-    # Set initialization timeout
-    os.environ['JAX_PLATFORMS'] = 'tpu'  # Force TPU platform
-    print("Set platform to TPU")
+    # Set JAX environment variables
+    os.environ['JAX_PLATFORMS'] = 'tpu'
+    os.environ['JAX_BACKEND_TARGET'] = 'libtpu'
+    os.environ['PJRT_DEVICE'] = 'TPU'
+    print("Set JAX environment variables")
     
-    # Try to get backend info with timeout
-    start_time = time.time()
-    timeout = 30  # 30 seconds
+    # Try direct TPU initialization
+    print("\nTrying TPU initialization...")
+    from jax.config import config
+    config.update('jax_platform_name', 'tpu')
+    config.update('jax_xla_backend', 'tpu')
+    print("JAX config updated for TPU")
     
-    while time.time() - start_time < timeout:
-        try:
-            backend = jax.extend.backend.get_backend()
-            print("Backend:", backend)
-            print("JAX version:", jax.__version__)
-            
-            # Try to get platform info
-            platform = backend.platform
-            print("Platform:", platform)
-            break
-        except Exception as e:
-            print(".", end="", flush=True)
-            time.sleep(1)
-    else:
-        print("\nTimeout waiting for JAX initialization")
-        
+    # Try to initialize backend
+    print("\nGetting backend information...")
+    backend = jax.extend.backend.get_backend()
+    print("Backend:", backend)
+    print("JAX version:", jax.__version__)
+    
+    # Try to get platform info
+    platform = backend.platform
+    print("Platform:", platform)
+    
 except Exception as e:
-    print("Error initializing JAX:", str(e))
+    print("Error in JAX setup:", str(e))
+    import traceback
+    traceback.print_exc()
 
 print("\nTrying to get devices...")
 try:
