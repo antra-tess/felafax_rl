@@ -35,7 +35,7 @@ print("\nInitializing JAX...")
 try:
     # Try to get backend info directly
     print("\nGetting backend information...")
-    backend = jax.extend.backend.get_backend()
+    backend = jax.lib.xla_bridge.get_backend()
     print("Backend:", backend)
     print("JAX version:", jax.__version__)
     
@@ -44,8 +44,8 @@ try:
     print("Platform:", platform)
     
     # Try to get process count
-    process_count = jax.process_count()
-    process_index = jax.process_index()
+    process_count = jax.distributed.process_count()
+    process_index = jax.distributed.process_index()
     print(f"\nProcess information:")
     print(f"Process index: {process_index}")
     print(f"Total processes: {process_count}")
