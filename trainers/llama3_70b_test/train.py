@@ -1,12 +1,4 @@
 import os
-import jax
-import numpy as np
-from datasets import load_dataset
-from transformers import AutoTokenizer, LlamaConfig
-
-from felafax.trainer_engine.data.data import SFTDataset, create_dataloader
-from felafax.trainer_engine.trainer import Trainer, TrainerConfig
-from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
 
 def get_worker_info():
     """Get TPU worker information from hostname."""
@@ -26,10 +18,23 @@ class AlpacaDataset(SFTDataset):
         prompt += "Output: "
         return prompt, output
 
+# Initialize JAX before importing
+process_id, num_processes = get_worker_info()
+os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
+os.environ['JAX_PROCESS_INDEX'] = str(process_id)
+
+import jax
+jax.distributed.initialize()
+
+# Now import the rest
+import numpy as np
+from datasets import load_dataset
+from transformers import AutoTokenizer, LlamaConfig
+from felafax.trainer_engine.data.data import SFTDataset, create_dataloader
+from felafax.trainer_engine.trainer import Trainer, TrainerConfig
+from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
+
 def main():
-    # Initialize JAX
-    process_id, num_processes = get_worker_info()
-    jax.distributed.initialize()
     
     # Set up TPU mesh
     devices = np.array(jax.devices()).reshape(1, 8, 8)
