@@ -1,5 +1,5 @@
 # Core Python utilities
-numpy>=1.24.0
+numpy>=1.24.0,<2.0.0
 typing-extensions>=4.5.0
 urllib3>=2.0.0
 aiofiles>=23.2.0
@@ -12,10 +12,11 @@ typeguard==2.13.3
 memory_profiler>=0.61.0
 
 # Deep Learning frameworks and core ML
+--find-links https://storage.googleapis.com/jax-releases/libtpu_releases.html
 torch==2.1.2
 torchvision==0.16.2
 jax==0.4.37
-jaxlib==0.4.36
+jaxlib==0.4.36+tpu
 equinox==0.11.8
 optax>=0.1.7
 orbax-checkpoint==0.10.1
