@@ -10,18 +10,15 @@ for i in $(seq 0 $((NUM_WORKERS-1))); do
     --zone="$ZONE" \
     --worker="$i" -- '
     cd ~/felafax_distr
-    # List all items except .venv
-    items=$(ls -A | grep -v "^\.venv$")
-    if [ -z "$items" ]; then
-      echo "No items to remove on worker '$i'"
-    else
-      echo "Removing items on worker '$i':"
-      echo "$items"
-      for item in $items; do
+    # List all items except .venv, handling hidden files correctly
+    shopt -s dotglob
+    for item in *; do
+      if [ "$item" != ".venv" ] && [ "$item" != "." ] && [ "$item" != ".." ]; then
+        echo "Removing $item on worker '$i'"
         rm -rf "$item"
-        echo "Removed $item"
-      done
-    fi
+      fi
+    done
+    shopt -u dotglob
     ' 2>&1 | tee clean_worker_${i}.log &
 done
 
