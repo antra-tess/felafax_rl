@@ -13,6 +13,9 @@ for i in $(seq 0 $((NUM_WORKERS-1))); do
     --worker="$i" -- "
     cd ~
     rm -rf $TARGET_DIR
+    # Add GitHub to known hosts
+    mkdir -p ~/.ssh
+    ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
     echo 'Cloning repository...'
     git clone $REPO_URL $TARGET_DIR
     " 2>&1 | tee sync_worker_${i}.log &
