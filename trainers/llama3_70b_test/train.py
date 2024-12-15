@@ -2,11 +2,11 @@ import os
 import jax
 import numpy as np
 from datasets import load_dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, LlamaConfig
 
 from felafax.trainer_engine.data.data import SFTDataset, create_dataloader
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
-from felafax.trainer_engine.automodel_lib import AutoJAXModelForCausalLM
+from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
 
 def get_worker_info():
     """Get TPU worker information from hostname."""
@@ -48,13 +48,32 @@ def main():
         lora_alpha=16,
     )
     
-    # Load model
-    model_path, model, config, tokenizer = AutoJAXModelForCausalLM.from_pretrained(
-        trainer_config.model_name,
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_name)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
+    # Configure model
+    model_config = LlamaConfig(
+        vocab_size=32000,
+        hidden_size=8192,
+        intermediate_size=28672,
+        num_hidden_layers=80,
+        num_attention_heads=64,
+        num_key_value_heads=8,
+        max_position_embeddings=4096,
+        rms_norm_eps=1e-5,
+        rope_theta=1e6,
+        lora_rank=trainer_config.lora_rank,
+        lora_alpha=trainer_config.lora_alpha
+    )
+    
+    # Initialize model
+    model = LlamaForCausalLM(
+        config=model_config,
         dtype=jax.numpy.bfloat16,
         param_dtype=jax.numpy.bfloat16,
-        lora_rank=trainer_config.lora_rank,
-        lora_alpha=trainer_config.lora_alpha,
+        use_optimized_decoder=True
     )
     
     # Load dataset
@@ -77,7 +96,7 @@ def main():
         train_dataloader=train_dataloader,
         val_dataloader=None,
         model=model,
-        model_config=config,
+        model_config=model_config,
     )
     
     trainer.train()
