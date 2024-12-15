@@ -33,25 +33,30 @@ except Exception as e:
 
 print("\nTrying to initialize JAX...")
 try:
-    # Try to get backend info
-    backend = jax.lib.xla_bridge.get_backend()
-    print("Backend:", backend)
-    print("JAX version:", jax.__version__)
+    # Set initialization timeout
+    os.environ['JAX_PLATFORMS'] = 'tpu'  # Force TPU platform
+    print("Set platform to TPU")
     
-    # Try to get platform info
-    platform = backend.platform
-    print("Platform:", platform)
+    # Try to get backend info with timeout
+    start_time = time.time()
+    timeout = 30  # 30 seconds
     
-    # Print XLA flags
-    from jax.config import config
-    print("\nJAX config flags:")
-    for name in dir(config):
-        if name.startswith('jax_'):
-            try:
-                value = getattr(config, name)
-                print(f"{name}: {value}")
-            except:
-                pass
+    while time.time() - start_time < timeout:
+        try:
+            backend = jax.extend.backend.get_backend()
+            print("Backend:", backend)
+            print("JAX version:", jax.__version__)
+            
+            # Try to get platform info
+            platform = backend.platform
+            print("Platform:", platform)
+            break
+        except Exception as e:
+            print(".", end="", flush=True)
+            time.sleep(1)
+    else:
+        print("\nTimeout waiting for JAX initialization")
+        
 except Exception as e:
     print("Error initializing JAX:", str(e))
 
