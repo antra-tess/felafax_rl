@@ -29,7 +29,7 @@ from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
 
 from dataclasses import dataclass
-from src.felafax.trainer_engine.data.data import DefaultDatasetLoader, DatasetConfig
+from felafax.trainer_engine.data.data import DefaultDatasetLoader, DatasetConfig
 
 @dataclass
 class AlpacaDatasetConfig(DatasetConfig):
