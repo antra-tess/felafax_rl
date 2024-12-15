@@ -12,15 +12,9 @@ for i in $(seq 0 $((NUM_WORKERS-1))); do
     --zone="$ZONE" \
     --worker="$i" -- "
     cd ~
-    if [ ! -d $TARGET_DIR ]; then
-      echo 'Directory does not exist, cloning repository...'
-      git clone $REPO_URL $TARGET_DIR
-    else
-      echo 'Directory exists, pulling latest changes...'
-      cd $TARGET_DIR
-      git fetch
-      git reset --hard origin/main
-    fi
+    rm -rf $TARGET_DIR
+    echo 'Cloning repository...'
+    git clone $REPO_URL $TARGET_DIR
     " 2>&1 | tee sync_worker_${i}.log &
 done
 
