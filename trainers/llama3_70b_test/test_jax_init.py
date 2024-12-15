@@ -31,28 +31,24 @@ try:
 except Exception as e:
     print("Error loading TPU library:", str(e))
 
-print("\nSetting up JAX environment...")
+print("\nInitializing JAX...")
 try:
-    # Set JAX environment variables
-    os.environ['JAX_PLATFORMS'] = 'tpu'
-    os.environ['JAX_BACKEND_TARGET'] = 'libtpu'
-    print("Set JAX environment variables")
-    
-    # Try to initialize JAX TPU runtime
-    print("\nTrying TPU initialization...")
-    import jax.tools.colab_tpu
-    jax.tools.colab_tpu.setup_tpu()
-    print("TPU runtime initialized")
-    
-    # Try to get backend info
+    # Try to get backend info directly
     print("\nGetting backend information...")
     backend = jax.extend.backend.get_backend()
     print("Backend:", backend)
     print("JAX version:", jax.__version__)
     
     # Try to get platform info
-    platform = backend.platform_name
+    platform = backend.platform
     print("Platform:", platform)
+    
+    # Try to get process count
+    process_count = jax.process_count()
+    process_index = jax.process_index()
+    print(f"\nProcess information:")
+    print(f"Process index: {process_index}")
+    print(f"Total processes: {process_count}")
     
 except Exception as e:
     print("Error in JAX setup:", str(e))
