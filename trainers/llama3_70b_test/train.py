@@ -2,12 +2,19 @@ import os
 import jax
 import numpy as np
 from typing import Dict, Any, Tuple
-import multiprocessing as mp
+import logging
 from functools import partial
 
 from felafax.trainer_engine.data.data import SFTDataset, create_dataloader
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.automodel_lib import AutoJAXModelForCausalLM
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - Worker %(process)d - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 def get_worker_info():
     """Get TPU worker information from hostname."""
@@ -18,31 +25,66 @@ def get_worker_info():
     # For v4-64, we have 8 workers
     return worker_id, 8
 
-def run_training(process_id: int, num_processes: int):
+def initialize_jax(process_id: int, num_processes: int):
+    """Initialize JAX's distributed runtime."""
+    logger.info(f"Initializing JAX process {process_id} of {num_processes}")
+    
+    # Get coordinator address (worker-0)
+    coordinator = f"t1v-n-affc976c-w-0:1234"
+    
+    try:
+        jax.distributed.initialize(
+            coordinator_address=coordinator,
+            num_processes=num_processes,
+            process_id=process_id
+        )
+        logger.info(f"JAX initialization successful for process {process_id}")
+    except Exception as e:
+        logger.error(f"JAX initialization failed: {e}")
+        raise
+
+def run_training():
     """Run training on a single TPU worker."""
-    # Configure local devices
-    local_devices = jax.local_devices()
-    print(f"Process {process_id}/{num_processes} sees {len(local_devices)} local devices")
+    """Run training on TPU worker."""
+    # Get worker information
+    process_id, num_processes = get_worker_info()
+    logger.info(f"Starting training on process {process_id} of {num_processes}")
     
-    # Configure TPU mesh for 70B model - adjusted for multi-worker
-    devices = np.array(jax.devices()).reshape(1, 8, 8)  # Global mesh shape stays the same
-    mesh = jax.sharding.Mesh(devices, ("batch", "fsdp", "mp"))
-    
-    # Training configuration
-    trainer_config = TrainerConfig(
-        model_name="meta-llama/Llama-3.1-70B",
-        num_tpus=64,
-        mesh_shape=(1, 8, 8),
-        learning_rate=1e-5,
-        num_steps=20,  # Small number for testing
-        base_dir="/tmp/llama_test",  # Adjust as needed
-        use_lora=True,  # Use LoRA to reduce memory requirements
-        lora_rank=8,
-        lora_alpha=16,
-    )
-    
-    if process_id == 0:
-        print("Loading model...")
+    try:
+        # Configure local devices
+        local_devices = jax.local_devices()
+        logger.info(f"Process {process_id} sees {len(local_devices)} local devices")
+        
+        # Wait for all processes to see their devices
+        jax.distributed.barrier()
+        
+        # Configure TPU mesh for 70B model
+        global_devices = jax.devices()
+        logger.info(f"Total available devices: {len(global_devices)}")
+        
+        # Create mesh with error handling
+        try:
+            devices = np.array(global_devices).reshape(1, 8, 8)
+            mesh = jax.sharding.Mesh(devices, ("batch", "fsdp", "mp"))
+            logger.info("Mesh creation successful")
+        except Exception as e:
+            logger.error(f"Mesh creation failed: {e}")
+            raise
+        
+        # Training configuration
+        trainer_config = TrainerConfig(
+            model_name="meta-llama/Llama-3.1-70B",
+            num_tpus=64,
+            mesh_shape=(1, 8, 8),
+            learning_rate=1e-5,
+            num_steps=20,  # Small number for testing
+            base_dir=f"/tmp/llama_test/worker_{process_id}",  # Separate dirs per worker
+            use_lora=True,
+            lora_rank=8,
+            lora_alpha=16,
+        )
+        
+        logger.info("Loading model...")
     model, config, tokenizer = AutoJAXModelForCausalLM.from_pretrained(
         trainer_config.model_name,
         mesh=mesh,
@@ -99,26 +141,18 @@ class AlpacaDataset(SFTDataset):
 
 def main():
     # Get worker information
-    worker_id, num_workers = get_worker_info()
-    print(f"Starting process {worker_id} of {num_workers}")
+    process_id, num_processes = get_worker_info()
     
-    # Create and start processes
-    if worker_id == 0:
-        # Only worker 0 spawns processes
-        processes = []
-        for i in range(num_workers):
-            p = mp.Process(target=run_training, args=(i, num_workers))
-            p.start()
-            processes.append(p)
-            
-        # Wait for all processes
-        for p in processes:
-            p.join()
-    else:
-        # Other workers just run their part
-        run_training(worker_id, num_workers)
+    try:
+        # Initialize JAX distributed system
+        initialize_jax(process_id, num_processes)
+        
+        # Run training
+        run_training()
+        
+    except Exception as e:
+        logger.error(f"Training failed on process {process_id}: {e}")
+        raise
 
 if __name__ == "__main__":
-    # Initialize JAX distributed system
-    jax.distributed.initialize()
     main()
