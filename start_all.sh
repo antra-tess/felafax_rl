@@ -1,8 +1,11 @@
+# Run test script on all TPU workers in parallel
 for i in {0..7}; do
+  echo "Starting worker $i..."
   gcloud compute tpus tpu-vm ssh finetune-70b \
     --zone=us-central2-b \
-    --worker=$i -- 'bash -l -s' < start_train.sh 2>&1 | tee worker_${i}.log &
+    --worker=$i -- 'bash -l -s' < start_test.sh 2>&1 | tee test_worker_${i}.log &
 done
 
-# Optional: wait for all background processes to complete
+# Wait for all workers to complete
 wait
+echo "All workers finished. Check test_worker_*.log files for results."
