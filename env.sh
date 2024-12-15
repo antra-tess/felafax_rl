@@ -1,4 +1,3 @@
-rm -fr ~/felafax_distr
-mkdir ~/felafax_distr
 cd ~/felafax_distr
+rm -fr .venv
 uv venv --python 3.11.11
