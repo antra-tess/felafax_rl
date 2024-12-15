@@ -6,18 +6,6 @@ def get_worker_info():
     worker_id = int(hostname.split('w-')[1]) if 'w-' in hostname else 0
     return worker_id, 8
 
-class AlpacaDataset(SFTDataset):
-    def apply_format(self, example):
-        instruction = example["instruction"]
-        input_text = example["input"]
-        output = example["output"]
-        
-        prompt = f"Instruction: {instruction}\n"
-        if input_text:
-            prompt += f"Input: {input_text}\n"
-        prompt += "Output: "
-        return prompt, output
-
 # Initialize JAX before importing
 process_id, num_processes = get_worker_info()
 os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
@@ -33,6 +21,18 @@ from transformers import AutoTokenizer, LlamaConfig
 from felafax.trainer_engine.data.data import SFTDataset, create_dataloader
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
+
+class AlpacaDataset(SFTDataset):
+    def apply_format(self, example):
+        instruction = example["instruction"]
+        input_text = example["input"]
+        output = example["output"]
+        
+        prompt = f"Instruction: {instruction}\n"
+        if input_text:
+            prompt += f"Input: {input_text}\n"
+        prompt += "Output: "
+        return prompt, output
 
 def main():
     
