@@ -69,8 +69,7 @@ def main():
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         trainer_config.model_name,
-        token=hf_token,
-        use_auth_token=hf_token  # Add this for older transformers versions
+        token=hf_token
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
