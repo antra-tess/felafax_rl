@@ -50,7 +50,6 @@ def main():
         base_dir=f"/tmp/llama_test/worker_{process_id}",
         use_lora=True,
         lora_rank=8,
-        lora_alpha=16,
     )
     
     # Load tokenizer
@@ -70,7 +69,7 @@ def main():
         rms_norm_eps=1e-5,
         rope_theta=1e6,
         lora_rank=trainer_config.lora_rank,
-        lora_alpha=trainer_config.lora_alpha
+        lora_alpha=16  # Hardcoded since not in TrainerConfig
     )
     
     # Initialize model
