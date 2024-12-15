@@ -31,38 +31,33 @@ try:
 except Exception as e:
     print("Error loading TPU library:", str(e))
 
-print("\nInitializing JAX...")
+print("\nInitializing JAX for TPU...")
 try:
-    # Try to get backend info directly
-    print("\nGetting backend information...")
-    print("JAX version:", jax.__version__)
-    
-    # Try to get device count first
+    # Get worker information from hostname
+    hostname = os.uname()[1]
+    if 'w-' not in hostname:
+        worker_id = 0
+    else:
+        worker_id = int(hostname.split('w-')[1])
+    print(f"Worker ID: {worker_id}")
+
+    # Set TPU-specific JAX flags
+    jax.config.update('jax_platform_name', 'tpu')
+    os.environ['JAX_PLATFORMS'] = 'tpu'
+    print("Set JAX platform to TPU")
+
+    # Initialize JAX runtime
+    print("Initializing JAX runtime...")
+    jax.distributed.initialize()
+    print("JAX runtime initialized")
+
+    # Now try to get device information
+    print("\nGetting device information...")
     device_count = jax.device_count()
     print(f"Device count: {device_count}")
     
-    # Try to get local device count
     local_device_count = jax.local_device_count()
     print(f"Local device count: {local_device_count}")
-    
-    # Try to get process information
-    try:
-        process_count = jax.distributed.process_count()
-        process_index = jax.distributed.process_index()
-        print(f"\nProcess information:")
-        print(f"Process index: {process_index}")
-        print(f"Total processes: {process_count}")
-    except Exception as e:
-        print("Note: Could not get process information:", str(e))
-    
-    # Try to get platform information
-    try:
-        from jax.lib import xla_client
-        platform = xla_client.get_local_backend().platform
-        print(f"\nPlatform information:")
-        print(f"Platform: {platform}")
-    except Exception as e:
-        print("Note: Could not get platform information:", str(e))
     
 except Exception as e:
     print("Error in JAX setup:", str(e))
