@@ -1,11 +1,10 @@
 import os
 import jax
 import time
-from jax.experimental.maps import thread_resources
-from jax.lib import xla_bridge
 import numpy as np
 
 print("Starting TPU environment check...")
+print(f"Python process ID: {os.getpid()}")
 
 # Print environment information
 print("\nEnvironment variables:")
@@ -32,14 +31,18 @@ try:
 except Exception as e:
     print("Error loading TPU library:", str(e))
 
-print("\nTrying to initialize JAX backend...")
+print("\nTrying to initialize JAX...")
 try:
-    # Use new API
-    backend = jax.extend.backend.get_backend()
-    print("Backend platform:", backend.platform)
-    print("Backend name:", backend.name)
+    # Try to initialize JAX and get platform info
+    backend = jax.config.jax_xla_backend
+    print("JAX XLA backend:", backend)
+    print("JAX version:", jax.__version__)
+    
+    # Try to get platform info
+    platform = jax.default_backend()
+    print("Default platform:", platform)
 except Exception as e:
-    print("Error getting backend:", str(e))
+    print("Error initializing JAX:", str(e))
 
 print("\nTrying to get devices...")
 try:
