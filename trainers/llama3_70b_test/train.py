@@ -95,8 +95,8 @@ def main():
     # Initialize model
     model = LlamaForCausalLM(
         config=model_config,
-        dtype=jax.numpy.bfloat16,
         param_dtype=jax.numpy.bfloat16,
+        compute_dtype=jax.numpy.bfloat16,
         use_optimized_decoder=True
     )
     
