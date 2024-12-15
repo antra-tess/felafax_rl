@@ -1,8 +1,13 @@
 #!/bin/bash
 cd ~/felafax_distr
-source .venv/bin/activate
 
-# Set JAX process coordination variables
+# Pull latest changes
+echo "Pulling latest changes..."
+git fetch
+git reset --hard origin/main
+
+# Activate environment and set variables
+source .venv/bin/activate
 export JAX_PROCESS_COUNT=8
 export JAX_PROCESS_INDEX=$(hostname | grep -oP "\d+$")
 
