@@ -1,44 +1,43 @@
 # Core Python utilities
-numpy
-typing-extensions
-urllib3
-aiofiles
-cloudpickle
+numpy>=1.24.0
+typing-extensions>=4.5.0
+urllib3>=2.0.0
+aiofiles>=23.2.0
+cloudpickle>=2.2.1
 
 # Testing and development tools
-pytest
+pytest>=7.4.0
 ruff==0.2.2
 typeguard==2.13.3
-memory_profiler
+memory_profiler>=0.61.0
 
 # Deep Learning frameworks and core ML
-torch --index-url https://download.pytorch.org/whl/cpu
-torchvision
-jax
-jaxlib
-equinox>=0.11.8
-# flax[all]
-optax
-orbax-checkpoint>=0.10.1
-transformers>=4.43
-accelerate>=0.26.0
-quax
+torch==2.1.2+cpu
+torchvision==0.16.2+cpu
+jax==0.4.37
+jaxlib==0.4.36
+equinox==0.11.8
+optax>=0.1.7
+orbax-checkpoint==0.10.1
+transformers==4.43.0
+accelerate==0.26.0
+quax>=0.0.3
 
 # ML utilities and extensions
-einops
+einops>=0.6.1
 jaxtyping==0.2.25
-ml_dtypes
-ml_collections
-huggingface_hub
+ml_dtypes>=0.2.0
+ml_collections>=0.1.1
+huggingface_hub>=0.20.1
 
 # Data processing and visualization
-datasets>=2.18.0
-sentencepiece
-matplotlib
-tqdm
+datasets==2.18.0
+sentencepiece>=0.1.99
+matplotlib>=3.7.1
+tqdm>=4.65.0
 
 # Storage and configuration
-gcsfs
-pyrallis
-absl-py
-python-dotenv
+gcsfs>=2023.9.0
+pyrallis>=0.3.1
+absl-py>=1.4.0
+python-dotenv>=1.0.0
