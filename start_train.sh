@@ -11,8 +11,9 @@ source .venv/bin/activate
 export JAX_PROCESS_COUNT=8
 export JAX_PROCESS_INDEX=$(hostname | grep -oP "\d+$")
 
-# Set HuggingFace token
-#export HF_TOKEN="your_token_here"  # Replace with actual token
+# Set cache directory
+export TRANSFORMERS_CACHE=/dev/shm/$USER/huggingface_cache
+mkdir -p $TRANSFORMERS_CACHE
 
 # Run the training script
 echo "Starting training on worker ${JAX_PROCESS_INDEX}"
