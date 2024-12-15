@@ -37,14 +37,14 @@ class AlpacaDataset(SFTDataset):
 def main():
     
     # Set up TPU mesh
-    devices = np.array(jax.devices()).reshape(1, 8, 8)
+    devices = np.array(jax.devices()).reshape(1, 8, 4)  # 8 workers × 4 devices per worker
     mesh = jax.sharding.Mesh(devices, ("batch", "fsdp", "mp"))
     
     # Configure training
     trainer_config = TrainerConfig(
         model_name="meta-llama/Llama-3.1-70B",
-        num_tpus=64,
-        mesh_shape=(1, 8, 8),
+        num_tpus=32,
+        mesh_shape=(1, 8, 4),
         learning_rate=1e-5,
         num_steps=20,
         base_dir=f"/tmp/llama_test/worker_{process_id}",
