@@ -69,7 +69,8 @@ def main():
         rms_norm_eps=1e-5,
         rope_theta=1e6,
         lora_rank=trainer_config.lora_rank,
-        lora_alpha=16  # Hardcoded since not in TrainerConfig
+        lora_alpha=16,  # Hardcoded since not in TrainerConfig
+        use_optimized_decoder=True
     )
     
     # Initialize model
