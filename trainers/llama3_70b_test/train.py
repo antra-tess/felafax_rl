@@ -85,44 +85,47 @@ def run_training():
         )
         
         logger.info("Loading model...")
-    model, config, tokenizer = AutoJAXModelForCausalLM.from_pretrained(
-        trainer_config.model_name,
-        mesh=mesh,
-        dtype=jax.numpy.bfloat16,  # Use bfloat16 for TPU
-        param_dtype=jax.numpy.bfloat16,
-        use_lora=trainer_config.use_lora,
-        lora_rank=trainer_config.lora_rank,
-        lora_alpha=trainer_config.lora_alpha,
-    )
-    
-    if process_id == 0:
-        print("Loading dataset...")
-    train_dataset = AlpacaDataset(
-        "yahma/alpaca-cleaned",
-        tokenizer=tokenizer,
-        max_length=1024,
-        max_examples=100
-    )
-    
-    train_dataloader = create_dataloader(
-        {"batch_size": 8, "num_workers": 4},
-        train_dataset,
-        shuffle=True
-    )
-    
-    # Initialize trainer
-    trainer = Trainer(
-        trainer_config,
-        train_dataloader=train_dataloader,
-        val_dataloader=None,  # No validation for this test
-        model=model,
-        model_config=config,
-    )
-    
-    # Start training
-    if process_id == 0:
-        print("Starting training...")
-    trainer.train()
+        # Load model and tokenizer
+        model, config, tokenizer = AutoJAXModelForCausalLM.from_pretrained(
+            trainer_config.model_name,
+            mesh=mesh,
+            dtype=jax.numpy.bfloat16,  # Use bfloat16 for TPU
+            param_dtype=jax.numpy.bfloat16,
+            use_lora=trainer_config.use_lora,
+            lora_rank=trainer_config.lora_rank,
+            lora_alpha=trainer_config.lora_alpha,
+        )
+        
+        logger.info("Loading dataset...")
+        train_dataset = AlpacaDataset(
+            "yahma/alpaca-cleaned",
+            tokenizer=tokenizer,
+            max_length=1024,
+            max_examples=100
+        )
+        
+        train_dataloader = create_dataloader(
+            {"batch_size": 8, "num_workers": 4},
+            train_dataset,
+            shuffle=True
+        )
+        
+        # Initialize trainer
+        trainer = Trainer(
+            trainer_config,
+            train_dataloader=train_dataloader,
+            val_dataloader=None,  # No validation for this test
+            model=model,
+            model_config=config,
+        )
+        
+        # Start training
+        logger.info("Starting training...")
+        trainer.train()
+        
+    except Exception as e:
+        logger.error(f"Training step failed: {e}")
+        raise
 
 class AlpacaDataset(SFTDataset):
     """Simple Alpaca dataset for testing."""
