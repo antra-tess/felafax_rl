@@ -1,4 +1,10 @@
 import os
+import sys
+
+# Check for HF_TOKEN at startup
+if not os.environ.get('HF_TOKEN'):
+    print("Error: HF_TOKEN environment variable is not set")
+    sys.exit(1)
 
 def get_worker_info():
     """Get TPU worker information from hostname."""
