@@ -1,0 +1,10 @@
+typer
+httpx
+pyyaml
+pathlib
+pydantic
+pydantic-settings
+requests
+python-multipart
+colorlog
+posthog

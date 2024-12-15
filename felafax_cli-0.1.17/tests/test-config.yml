@@ -1,0 +1,17 @@
+data_config:
+  batch_size: 16
+  max_seq_length: 32
+trainer_config:
+  param_dtype: bfloat16
+  compute_dtype: bfloat16
+  num_epochs: 1
+  num_steps: 5
+  learning_rate: 0.001
+  lora_rank: 16
+  use_lora: true
+  log_interval: 5
+  eval_interval: 5
+  eval_steps: 10
+huggingface_config:
+  hf_repo: ""
+  hf_token: "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"
