@@ -1,5 +1,7 @@
 import os
 import sys
+import json
+import safetensors.torch
 from datetime import datetime
 
 def log(msg):
@@ -21,9 +23,50 @@ def get_worker_info():
     log(f"Identified as worker {worker_id}")
     return worker_id, 8
 
-# Initialize JAX before importing
+# Get worker info
 log("Getting worker info...")
 process_id, num_processes = get_worker_info()
+
+# Load model files before JAX initialization
+log("Loading model files into memory...")
+local_path = "/tmp/model-shards"
+
+# Load config first
+log("Loading config.json...")
+with open(os.path.join(local_path, "config.json")) as f:
+    config_data = json.load(f)
+log("Config loaded successfully")
+
+# Get shard range for this worker
+def get_worker_shards(worker_id):
+    shard_ranges = {
+        0: (1, 4),    # Worker 0: shards 1-4
+        1: (4, 8),    # Worker 1: shards 4-8
+        2: (8, 12),   # Worker 2: shards 8-12
+        3: (12, 15),  # Worker 3: shards 12-15
+        4: (16, 19),  # Worker 4: shards 16-19
+        5: (19, 23),  # Worker 5: shards 19-23
+        6: (23, 27),  # Worker 6: shards 23-27
+        7: (27, 30),  # Worker 7: shards 27-30
+    }
+    return shard_ranges[worker_id]
+
+start_shard, end_shard = get_worker_shards(process_id)
+log(f"Worker {process_id} loading shards {start_shard}-{end_shard}")
+
+# Load model shards into memory
+loaded_shards = {}
+for shard_idx in range(start_shard, end_shard + 1):
+    shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
+    shard_path = os.path.join(local_path, shard_file)
+    log(f"Loading shard: {shard_path}")
+    shard_data = safetensors.torch.load_file(shard_path)
+    loaded_shards[shard_idx] = shard_data
+    log(f"Loaded shard {shard_idx} successfully")
+
+log("All shards loaded into memory")
+
+# Now initialize JAX
 log(f"Setting JAX environment (process {process_id} of {num_processes})")
 os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
 os.environ['JAX_PROCESS_INDEX'] = str(process_id)
