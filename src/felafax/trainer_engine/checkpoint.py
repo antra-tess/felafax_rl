@@ -225,12 +225,18 @@ def load_llama_from_hf(
             model_name, mesh, token, lora_rank, param_dtype, compute_dtype
         )
 
-    # Load HF model on CPU to save GPU memory
+    # Get worker ID from hostname
+    hostname = os.uname()[1]
+    worker_id = int(hostname.split('w-')[1]) if 'w-' in hostname else 0
+    print(f"Loading model for worker {worker_id}")
+
+    # Load HF model from local shards
     hf_model = HFLlamaForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch.float32,
-        token=token,
         device_map={"": "cpu"},
+        low_cpu_mem_usage=True,
+        offload_folder="/tmp/offload",  # Use temp directory for offloading
     )
 
     # Create config and initialize Equinox model
