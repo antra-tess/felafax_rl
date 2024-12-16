@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import equinox as eqx
 import orbax.checkpoint as ocp
+import safetensors.torch
 from transformers import (
     LlamaForCausalLM as HFLlamaForCausalLM,
     LlamaConfig as HFLlamaConfig,
