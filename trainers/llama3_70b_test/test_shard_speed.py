@@ -1,6 +1,10 @@
 import os
 import time
 import sys
+from datetime import datetime
+
+def get_timestamp():
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 def main():
     model_path = "/mnt/gcs-bucket/llama-70b-files/llama-70b-files"
@@ -18,9 +22,9 @@ def main():
         size = os.path.getsize(shard_path)
         size_gb = size/1024/1024/1024
         
-        print(f"\nIteration {i+1}/{num_iterations}")
-        print(f"Testing read speed for: {shard_file}")
-        print(f"File size: {size_gb:.2f} GB")
+        print(f"\n[{get_timestamp()}] Iteration {i+1}/{num_iterations}")
+        print(f"[{get_timestamp()}] Testing read speed for: {shard_file}")
+        print(f"[{get_timestamp()}] File size: {size_gb:.2f} GB")
         
         # Read file and measure speed
         start = time.time()
@@ -29,8 +33,8 @@ def main():
         read_time = time.time() - start
         
         speed = size_gb / read_time
-        print(f"Read {size_gb:.2f} GB in {read_time:.2f} seconds")
-        print(f"Speed: {speed:.2f} GB/s")
+        print(f"[{get_timestamp()}] Read {size_gb:.2f} GB in {read_time:.2f} seconds")
+        print(f"[{get_timestamp()}] Speed: {speed:.2f} GB/s")
         
         # Force clear any OS cache
         os.system("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'")
