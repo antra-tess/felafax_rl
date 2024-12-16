@@ -11,17 +11,11 @@ for i in $(seq 0 $((NUM_WORKERS-1))); do
     --worker="$i" -- "
     echo 'Creating gcsfuse config directory...'
     mkdir -p ~/.config/gcsfuse
-    echo 'Writing/updating config file...'
-    CONFIG_FILE=~/.config/gcsfuse/config.yaml
-    if [ -f \"\$CONFIG_FILE\" ]; then
-        if grep -q 'enable-parallel-downloads:' \"\$CONFIG_FILE\"; then
-            sed -i 's/enable-parallel-downloads:.*/enable-parallel-downloads: true/' \"\$CONFIG_FILE\"
-        else
-            echo 'enable-parallel-downloads: true' >> \"\$CONFIG_FILE\"
-        fi
-    else
-        echo 'enable-parallel-downloads: true' > \"\$CONFIG_FILE\"
-    fi
+    echo 'Writing config file...'
+    cat > ~/.config/gcsfuse/config.yaml << 'EOL'
+file-cache:
+  enable-parallel-downloads: true
+EOL
     echo 'Config updated on worker $i'
     " 2>&1 | tee gcsfuse_config_${i}.log &
 done
