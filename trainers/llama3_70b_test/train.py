@@ -1,8 +1,10 @@
 import os
 import sys
 import json
+import numpy as np
 import safetensors.torch
 from datetime import datetime
+from transformers import AutoTokenizer
 
 def log(msg):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
