@@ -33,16 +33,24 @@ for i in $(seq 0 $((NUM_WORKERS-1))); do
     for shard in \$(seq \$start_shard \$end_shard); do
         # Pad shard number with zeros
         padded_shard=\$(printf \"%05d\" \$shard)
-        echo \"Copying shard \$padded_shard...\"
-        cp $GCS_PATH/model-\$padded_shard-of-00030.safetensors $LOCAL_PATH/
+        shard_file="model-\$padded_shard-of-00030.safetensors"
+        if [ ! -f "$LOCAL_PATH/\$shard_file" ]; then
+            echo \"Copying shard \$padded_shard...\"
+            cp $GCS_PATH/\$shard_file $LOCAL_PATH/
+        else
+            echo \"Shard \$padded_shard already exists, skipping...\"
+        fi
     done
     
-    # Also copy necessary config files
-    cp $GCS_PATH/config.json $LOCAL_PATH/
-    cp $GCS_PATH/tokenizer.json $LOCAL_PATH/
-    cp $GCS_PATH/tokenizer_config.json $LOCAL_PATH/
-    cp $GCS_PATH/special_tokens_map.json $LOCAL_PATH/
-    cp $GCS_PATH/generation_config.json $LOCAL_PATH/
+    # Also copy necessary config files if they don't exist
+    for config_file in config.json tokenizer.json tokenizer_config.json special_tokens_map.json generation_config.json; do
+        if [ ! -f "$LOCAL_PATH/\$config_file" ]; then
+            echo \"Copying \$config_file...\"
+            cp $GCS_PATH/\$config_file $LOCAL_PATH/
+        else
+            echo \"\$config_file already exists, skipping...\"
+        fi
+    done
     
     echo \"Copied shards and config files for worker $i\"
     ls -lh $LOCAL_PATH/
