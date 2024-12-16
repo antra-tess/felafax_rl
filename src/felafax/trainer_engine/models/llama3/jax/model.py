@@ -76,6 +76,21 @@ class LlamaConfig:
 
         self.use_optimized_decoder = kwargs.get("use_optimized_decoder", True)
 
+    @classmethod
+    def from_pretrained(cls, model_path):
+        """Load config from HuggingFace model path."""
+        import json
+        import os
+        
+        config_path = os.path.join(model_path, "config.json")
+        if not os.path.exists(config_path):
+            raise ValueError(f"Config file not found at {config_path}")
+            
+        with open(config_path) as f:
+            config = json.load(f)
+            
+        return cls(**config)
+
     @property
     def param_dtype(self):
         """Gets the parameter dtype, converting from string to JAX dtype."""
