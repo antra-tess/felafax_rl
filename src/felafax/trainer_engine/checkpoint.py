@@ -197,6 +197,20 @@ def _make_torch_to_jax(dtype, mesh):
 
 
 # TODO(refactor): Move load model into models/llama.
+def get_worker_shards(worker_id: int) -> Tuple[int, int]:
+    """Get the shard range for a given worker."""
+    shard_ranges = {
+        0: (1, 4),    # Worker 0: shards 1-4
+        1: (4, 8),    # Worker 1: shards 4-8
+        2: (8, 12),   # Worker 2: shards 8-12
+        3: (12, 15),  # Worker 3: shards 12-15
+        4: (16, 19),  # Worker 4: shards 16-19
+        5: (19, 23),  # Worker 5: shards 19-23
+        6: (23, 27),  # Worker 6: shards 23-27
+        7: (27, 30),  # Worker 7: shards 27-30
+    }
+    return shard_ranges[worker_id]
+
 def load_llama_from_hf(
     model_name: str,
     mesh: jax.sharding.Mesh,
@@ -230,14 +244,23 @@ def load_llama_from_hf(
     worker_id = int(hostname.split('w-')[1]) if 'w-' in hostname else 0
     print(f"Loading model for worker {worker_id}")
 
-    # Load HF model from local shards
-    hf_model = HFLlamaForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.float32,
-        device_map={"": "cpu"},
-        low_cpu_mem_usage=True,
-        offload_folder="/tmp/offload",  # Use temp directory for offloading
-    )
+    # Get worker ID and shard range
+    hostname = os.uname()[1]
+    worker_id = int(hostname.split('w-')[1]) if 'w-' in hostname else 0
+    start_shard, end_shard = get_worker_shards(worker_id)
+    print(f"Worker {worker_id} loading shards {start_shard}-{end_shard}")
+
+    # Load config and create model
+    config = LlamaConfig.from_pretrained(model_name)
+    hf_model = HFLlamaForCausalLM(config)
+
+    # Load shards assigned to this worker
+    for shard_idx in range(start_shard, end_shard + 1):
+        shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
+        shard_path = os.path.join(model_name, shard_file)
+        print(f"Loading shard: {shard_path}")
+        state_dict = safetensors.torch.load_file(shard_path)
+        hf_model.load_state_dict(state_dict, strict=False)
 
     # Create config and initialize Equinox model
     model_config = create_llama_config_from_hf_model(hf_model)
