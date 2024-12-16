@@ -48,9 +48,13 @@ def main():
     devices = np.array(jax.devices()).reshape(1, 8, 4)  # 8 workers × 4 devices per worker
     mesh = jax.sharding.Mesh(devices, ("batch", "fsdp", "mp"))
     
+    # Load tokenizer from GCS mount
+    model_path = "/mnt/gcs-bucket/llama-70b-files/llama-70b-files"
+    print(f"Loading model from: {model_path}")
+
     # Configure training
     trainer_config = TrainerConfig(
-        model_name="/mnt/gcs-bucket/llama-70b-files",
+        model_name=model_path,
         num_tpus=32,
         mesh_shape=(1, 8, 4),
         learning_rate=1e-5,
@@ -59,9 +63,6 @@ def main():
         use_lora=True,
         lora_rank=8,
     )
-    
-    # Load tokenizer from GCS mount
-    model_path = "/mnt/gcs-bucket/llama-70b-files/llama-70b-files"
     print(f"Loading model from: {model_path}")
     
     # Load tokenizer
