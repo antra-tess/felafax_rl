@@ -1,24 +1,38 @@
 import os
 import sys
+from datetime import datetime
+
+def log(msg):
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+    print(f"[{timestamp}] {msg}", flush=True)
+
+log("Starting script execution")
 
 # Check for HF_TOKEN at startup
 if not os.environ.get('HF_TOKEN'):
-    print("Error: HF_TOKEN environment variable is not set")
+    log("Error: HF_TOKEN environment variable is not set")
     sys.exit(1)
 
 def get_worker_info():
     """Get TPU worker information from hostname."""
     hostname = os.uname()[1]
+    log(f"Hostname: {hostname}")
     worker_id = int(hostname.split('w-')[1]) if 'w-' in hostname else 0
+    log(f"Identified as worker {worker_id}")
     return worker_id, 8
 
 # Initialize JAX before importing
+log("Getting worker info...")
 process_id, num_processes = get_worker_info()
+log(f"Setting JAX environment (process {process_id} of {num_processes})")
 os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
 os.environ['JAX_PROCESS_INDEX'] = str(process_id)
 
+log("Importing JAX...")
 import jax
+log("Initializing JAX distributed...")
 jax.distributed.initialize()
+log("JAX distributed initialization complete")
 
 # Now import the rest
 import numpy as np
@@ -50,7 +64,12 @@ def main():
     
     # Load from local shards based on worker ID
     local_path = "/tmp/model-shards"
-    print(f"Loading model from local shards at: {local_path}")
+    log(f"Loading model from local shards at: {local_path}")
+    log(f"Available files in {local_path}:")
+    if os.path.exists(local_path):
+        log("\n".join(os.listdir(local_path)))
+    else:
+        log(f"Directory {local_path} does not exist!")
 
     # Configure training
     trainer_config = TrainerConfig(
