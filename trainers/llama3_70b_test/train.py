@@ -59,7 +59,7 @@ def main():
         mesh_shape=(1, 8, 4),
         learning_rate=1e-5,
         num_steps=20,
-        base_dir=f"/tmp/llama_test/worker_{process_id}",
+        base_dir=f"/tmp/model-shards/checkpoints/worker_{process_id}",
         use_lora=True,
         lora_rank=8,
     )
