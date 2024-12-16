@@ -8,14 +8,14 @@ LOCAL_PATH="/tmp/model-shards"
 
 # Define shard ranges for each worker based on JAX sharding requirements
 declare -A SHARD_RANGES=(
-    ["0"]="1 4"    # Worker 0: shards 1-4 (includes overlap)
-    ["1"]="4 8"    # Worker 1: shards 4-8 (includes overlaps)
-    ["2"]="8 12"   # Worker 2: shards 8-12 (includes overlaps)
-    ["3"]="12 16"  # Worker 3: shards 12-16 (includes overlap)
-    ["4"]="16 20"  # Worker 4: shards 16-20 (includes overlap)
-    ["5"]="20 24"  # Worker 5: shards 20-24 (includes overlap)
-    ["6"]="24 28"  # Worker 6: shards 24-28 (includes overlap)
-    ["7"]="28 30"  # Worker 7: shards 28-30
+    ["0"]="1 4"    # Worker 0: shards 1-4
+    ["1"]="4 8"    # Worker 1: shards 4-8
+    ["2"]="8 12"   # Worker 2: shards 8-12
+    ["3"]="12 15"  # Worker 3: shards 12-15
+    ["4"]="16 19"  # Worker 4: shards 16-19
+    ["5"]="19 23"  # Worker 5: shards 19-23
+    ["6"]="23 27"  # Worker 6: shards 23-27
+    ["7"]="27 30"  # Worker 7: shards 27-30
 )
 
 for i in $(seq 0 $((NUM_WORKERS-1))); do
