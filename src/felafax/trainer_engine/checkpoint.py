@@ -34,7 +34,7 @@ class CheckpointerConfig:
     """Configuration for checkpointing"""
 
     checkpoint_dir: str
-    max_to_keep: int = 2
+    max_to_keep: int = 3
     save_interval_steps: int = 10
     create: bool = True  # Create the checkpoint directory if it doesn't exist
     enable_async_checkpointing: bool = True
