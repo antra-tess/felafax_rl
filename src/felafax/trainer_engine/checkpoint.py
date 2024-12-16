@@ -251,9 +251,12 @@ def load_llama_from_hf(
     start_shard, end_shard = get_worker_shards(worker_id)
     print(f"Worker {worker_id} loading shards {start_shard}-{end_shard}")
 
-    # Load config and create model
-    config = LlamaConfig.from_pretrained(model_name)
+    # Load config and create model using HF's config class
+    config = HFLlamaConfig.from_pretrained(model_name)
     hf_model = HFLlamaForCausalLM(config)
+    
+    # Convert to our config format for JAX model
+    model_config = create_llama_config_from_hf_model(hf_model)
 
     # Create state dict to accumulate weights
     accumulated_state_dict = {}
