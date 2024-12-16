@@ -50,7 +50,7 @@ def main():
     
     # Configure training
     trainer_config = TrainerConfig(
-        model_name="meta-llama/Llama-3.1-70B",
+        model_name="/mnt/gcs-bucket/llama-70b-files",
         num_tpus=32,
         mesh_shape=(1, 8, 4),
         learning_rate=1e-5,
@@ -60,21 +60,12 @@ def main():
         lora_rank=8,
     )
     
-    # Load tokenizer with HF token
-    hf_token = os.environ.get('HF_TOKEN')
-    if not hf_token:
-        raise ValueError("HF_TOKEN environment variable is not set")
-    
-    print(f"Using HF token: {hf_token[:4]}...{hf_token[-4:]}")  # Print first and last 4 chars
-    
-    # Update trainer config with token
-    trainer_config.hf_token = hf_token
+    # Load tokenizer from GCS mount
+    model_path = "/mnt/gcs-bucket/llama-70b-files"
+    print(f"Loading model from: {model_path}")
     
     # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(
-        trainer_config.model_name,
-        token=hf_token
-    )
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     

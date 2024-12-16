@@ -11,8 +11,6 @@ source .venv/bin/activate
 export JAX_PROCESS_COUNT=8
 export JAX_PROCESS_INDEX=$(hostname | grep -oP "\d+$")
 
-# Set HuggingFace cache directory
-export HF_HOME=/mnt/gcs-bucket/huggingface_cache
 
 # Run the training script
 echo "Starting training on worker ${JAX_PROCESS_INDEX}"
