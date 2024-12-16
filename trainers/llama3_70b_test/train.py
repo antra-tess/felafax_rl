@@ -68,7 +68,18 @@ for shard_idx in range(start_shard, end_shard + 1):
 
 log("All shards loaded into memory")
 
-# Import non-JAX dependencies first
+# Initialize JAX first
+log(f"Setting JAX environment (process {process_id} of {num_processes})")
+os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
+os.environ['JAX_PROCESS_INDEX'] = str(process_id)
+
+log("Importing JAX...")
+import jax
+log("Initializing JAX distributed...")
+jax.distributed.initialize()
+log("JAX distributed initialization complete")
+
+# Now import other dependencies
 log("Importing core dependencies...")
 from datasets import load_dataset
 from transformers import LlamaConfig
@@ -83,17 +94,6 @@ tokenizer = AutoTokenizer.from_pretrained(local_path)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 log("Tokenizer loaded successfully")
-
-# Initialize JAX
-log(f"Setting JAX environment (process {process_id} of {num_processes})")
-os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
-os.environ['JAX_PROCESS_INDEX'] = str(process_id)
-
-log("Importing JAX...")
-import jax
-log("Initializing JAX distributed...")
-jax.distributed.initialize()
-log("JAX distributed initialization complete")
 
 class AlpacaDataset(SFTDataset):
     """Alpaca dataset for supervised fine-tuning."""
