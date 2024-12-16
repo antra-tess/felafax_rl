@@ -255,13 +255,26 @@ def load_llama_from_hf(
     config = LlamaConfig.from_pretrained(model_name)
     hf_model = HFLlamaForCausalLM(config)
 
+    # Create state dict to accumulate weights
+    accumulated_state_dict = {}
+
     # Load shards assigned to this worker
     for shard_idx in range(start_shard, end_shard + 1):
         shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
         shard_path = os.path.join(model_name, shard_file)
         print(f"Loading shard: {shard_path}")
-        state_dict = safetensors.torch.load_file(shard_path)
-        hf_model.load_state_dict(state_dict, strict=False)
+        shard_dict = safetensors.torch.load_file(shard_path)
+        
+        # Accumulate weights from this shard
+        for key, value in shard_dict.items():
+            if key not in accumulated_state_dict:
+                accumulated_state_dict[key] = value
+            else:
+                # For overlapping keys, take the newer value
+                accumulated_state_dict[key] = value
+
+    # Load accumulated weights into model
+    hf_model.load_state_dict(accumulated_state_dict, strict=False)
 
     # Create config and initialize Equinox model
     model_config = create_llama_config_from_hf_model(hf_model)
