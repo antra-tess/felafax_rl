@@ -34,9 +34,9 @@ for i in $(seq 0 $((NUM_WORKERS-1))); do
         echo user_allow_other | sudo tee -a /etc/fuse.conf
       fi
 
-      # Step 3: Mount with --allow-other
+      # Step 3: Mount with --allow-other and parallel downloads
       echo \"Mounting GCS bucket $BUCKET_NAME to $MOUNT_POINT...\"
-      sudo gcsfuse -o allow_other --file-mode=777 --dir-mode=777 --implicit-dirs $BUCKET_NAME $MOUNT_POINT
+      sudo gcsfuse -o allow_other --file-mode=777 --dir-mode=777 --implicit-dirs --enable-parallel-downloads $BUCKET_NAME $MOUNT_POINT
 
       # Step 4: Adjust permissions on the mount point if needed
       # allow-other does the main job, but we can set directory perms
