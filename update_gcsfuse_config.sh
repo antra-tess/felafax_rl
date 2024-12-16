@@ -24,9 +24,7 @@ for i in $(seq 0 $((NUM_WORKERS-1))); do
         fi
     else
         # Create new config file
-        cat > "$CONFIG_FILE" << EOL
-enable-parallel-downloads: true
-EOL
+        echo "enable-parallel-downloads: true" > "$CONFIG_FILE"
     fi
     echo "Config updated on worker $i"
     ' 2>&1 | tee gcsfuse_config_${i}.log &
