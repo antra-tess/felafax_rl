@@ -272,9 +272,15 @@ def load_llama_from_hf(
             else:
                 # For overlapping keys, take the newer value
                 accumulated_state_dict[key] = value
+        
+        # Clean up shard dict after accumulating
+        del shard_dict
 
     # Load accumulated weights into model
     hf_model.load_state_dict(accumulated_state_dict, strict=False)
+    
+    # Clean up accumulated state dict to free memory
+    del accumulated_state_dict
 
     # Create config and initialize Equinox model
     model_config = create_llama_config_from_hf_model(hf_model)
