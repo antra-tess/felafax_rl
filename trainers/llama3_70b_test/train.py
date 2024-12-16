@@ -81,7 +81,10 @@ def main():
     log(f"Loading model from local shards at: {local_path}")
     log(f"Available files in {local_path}:")
     if os.path.exists(local_path):
-        log("\n".join(os.listdir(local_path)))
+        files = os.listdir(local_path)
+        log(f"Found {len(files)} files:")
+        for f in files:
+            log(f"  {f}")
     else:
         log(f"Directory {local_path} does not exist!")
 
