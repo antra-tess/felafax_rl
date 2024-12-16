@@ -34,13 +34,20 @@ log("Initializing JAX distributed...")
 jax.distributed.initialize()
 log("JAX distributed initialization complete")
 
-# Now import the rest
+log("Starting imports...")
+log("Importing numpy...")
 import numpy as np
+log("Importing datasets...")
 from datasets import load_dataset
+log("Importing transformers...")
 from transformers import AutoTokenizer, LlamaConfig
+log("Importing felafax data modules...")
 from felafax.trainer_engine.data.data import SFTDataset, create_dataloader, DatasetConfig
+log("Importing felafax trainer modules...")
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
+log("Importing felafax model modules...")
 from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
+log("All imports complete")
 
 class AlpacaDataset(SFTDataset):
     """Alpaca dataset for supervised fine-tuning."""
@@ -57,10 +64,17 @@ class AlpacaDataset(SFTDataset):
         return prompt, output
 
 def main():
+    log("Starting main function")
     
     # Set up TPU mesh
-    devices = np.array(jax.devices()).reshape(1, 8, 4)  # 8 workers × 4 devices per worker
+    log("Getting JAX devices...")
+    devices = jax.devices()
+    log(f"Found {len(devices)} devices")
+    log("Creating device mesh...")
+    devices = np.array(devices).reshape(1, 8, 4)  # 8 workers × 4 devices per worker
+    log("Creating JAX mesh...")
     mesh = jax.sharding.Mesh(devices, ("batch", "fsdp", "mp"))
+    log("Mesh creation complete")
     
     # Load from local shards based on worker ID
     local_path = "/tmp/model-shards"
