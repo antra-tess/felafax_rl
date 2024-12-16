@@ -6,15 +6,15 @@ NUM_WORKERS=8
 GCS_PATH="/mnt/gcs-bucket/llama-70b-files/llama-70b-files"
 LOCAL_PATH="/tmp/model-shards"
 
-# Define shard ranges for each worker
+# Define shard ranges for each worker based on JAX sharding requirements
 declare -A SHARD_RANGES=(
-    ["0"]="1 4"    # Worker 0: shards 1-4
-    ["1"]="5 8"    # Worker 1: shards 5-8
-    ["2"]="9 12"   # Worker 2: shards 9-12
-    ["3"]="13 15"  # Worker 3: shards 13-15
-    ["4"]="16 19"  # Worker 4: shards 16-19
-    ["5"]="20 22"  # Worker 5: shards 20-22
-    ["6"]="23 26"  # Worker 6: shards 23-26
+    ["0"]="1 4"    # Worker 0: shards 1-4 (includes overlap)
+    ["1"]="4 8"    # Worker 1: shards 4-8 (includes overlaps)
+    ["2"]="8 12"   # Worker 2: shards 8-12 (includes overlaps)
+    ["3"]="12 15"  # Worker 3: shards 12-15 (includes overlap)
+    ["4"]="15 19"  # Worker 4: shards 15-19 (includes overlap)
+    ["5"]="19 23"  # Worker 5: shards 19-23 (includes overlap)
+    ["6"]="23 27"  # Worker 6: shards 23-27 (includes overlap)
     ["7"]="27 30"  # Worker 7: shards 27-30
 )
 
