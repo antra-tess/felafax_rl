@@ -48,13 +48,13 @@ def main():
     devices = np.array(jax.devices()).reshape(1, 8, 4)  # 8 workers × 4 devices per worker
     mesh = jax.sharding.Mesh(devices, ("batch", "fsdp", "mp"))
     
-    # Load tokenizer from GCS mount
-    model_path = "/mnt/gcs-bucket/llama-70b-files/llama-70b-files"
-    print(f"Loading model from: {model_path}")
+    # Load from local shards based on worker ID
+    local_path = "/tmp/model-shards"
+    print(f"Loading model from local shards at: {local_path}")
 
     # Configure training
     trainer_config = TrainerConfig(
-        model_name=model_path,
+        model_name=local_path,
         num_tpus=32,
         mesh_shape=(1, 8, 4),
         learning_rate=1e-5,
@@ -63,10 +63,9 @@ def main():
         use_lora=True,
         lora_rank=8,
     )
-    print(f"Loading model from: {model_path}")
     
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    # Load tokenizer from local path
+    tokenizer = AutoTokenizer.from_pretrained(local_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
