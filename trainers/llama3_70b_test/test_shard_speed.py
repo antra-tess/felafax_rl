@@ -15,15 +15,22 @@ def main():
     print(f"Testing read speed for: {shard_file}")
     print(f"File size: {size_gb:.2f} GB")
     
-    # Read file and measure speed
-    start = time.time()
-    with open(shard_path, 'rb') as f:
-        data = f.read()
-    read_time = time.time() - start
-    
-    speed = size_gb / read_time
-    print(f"\nRead {size_gb:.2f} GB in {read_time:.2f} seconds")
-    print(f"Average read speed: {speed:.2f} GB/s")
+    num_iterations = 5
+    for i in range(num_iterations):
+        print(f"\nIteration {i+1}/{num_iterations}")
+        # Read file and measure speed
+        start = time.time()
+        with open(shard_path, 'rb') as f:
+            data = f.read()
+        read_time = time.time() - start
+        
+        speed = size_gb / read_time
+        print(f"Read {size_gb:.2f} GB in {read_time:.2f} seconds")
+        print(f"Speed: {speed:.2f} GB/s")
+        
+        # Force clear any OS cache
+        os.system("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'")
+        time.sleep(1)  # Give system time to clear caches
 
 if __name__ == "__main__":
     main()
