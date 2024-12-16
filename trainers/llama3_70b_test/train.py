@@ -61,7 +61,7 @@ def main():
     )
     
     # Load tokenizer from GCS mount
-    model_path = "/mnt/gcs-bucket/llama-70b-files"
+    model_path = "/mnt/gcs-bucket/llama-70b-files/llama-70b-files"
     print(f"Loading model from: {model_path}")
     
     # Load tokenizer
