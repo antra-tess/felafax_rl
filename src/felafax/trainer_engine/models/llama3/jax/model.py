@@ -163,9 +163,19 @@ class LlamaLinear(eqx.Module):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
         
+        # Calculate memory requirements
+        weight_size = out_features * in_features * jnp.dtype(param_dtype).itemsize / (1024 * 1024)  # Size in MB
+        print(f"Allocating weight matrix of size {out_features}x{in_features} = {weight_size:.2f}MB")
+        
         # Initialize with zeros since we'll load actual weights from shards
         self.weight = jnp.zeros((out_features, in_features), dtype=self.param_dtype)
-        self.bias = jnp.zeros((out_features,), dtype=self.param_dtype) if bias else None
+        
+        if bias:
+            bias_size = out_features * jnp.dtype(param_dtype).itemsize / (1024 * 1024)  # Size in MB
+            print(f"Allocating bias vector of size {out_features} = {bias_size:.2f}MB")
+            self.bias = jnp.zeros((out_features,), dtype=self.param_dtype)
+        else:
+            self.bias = None
         
         self.rank = rank
         self.alpha = alpha
