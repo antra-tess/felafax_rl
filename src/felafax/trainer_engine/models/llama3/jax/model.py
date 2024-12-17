@@ -2,6 +2,7 @@
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import equinox as eqx
 from typing import Optional, Any, List
 import ml_dtypes
