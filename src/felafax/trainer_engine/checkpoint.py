@@ -631,79 +631,89 @@ def load_llama_from_hf_unoptimized(
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
     # Copy weights from HF model to Equinox model
-    eqx_model = eqx.tree_at(
-        lambda t: t.model.embed_tokens.weight,
-        eqx_model,
-        # Copy embedding weights at float32 precision.
-        torch_to_jax_float32(
-            hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))
-        ),
-    )
-    eqx_model = eqx.tree_at(
-        lambda t: t.model.norm.weight,
-        eqx_model,
-        torch_to_jax(hf_model.model.norm.weight, PS()),
-    )
-    eqx_model = eqx.tree_at(
-        lambda t: t.lm_head.weight,
-        eqx_model,
-        torch_to_jax(hf_model.lm_head.weight, PS(("fsdp", "mp"))),
-    )
-
-    # Copy layer weights with appropriate sharding
-    for i in range(len(eqx_model.model.layers)):
-        hf_layer = hf_model.model.layers[i]
-
-        # Self-attention weights
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.q_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.q_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.k_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.k_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.v_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.v_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.o_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.o_proj.weight, PS(("mp", "fsdp"))),
-        )
-
-        # MLP weights
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.gate_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.gate_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.up_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.up_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.down_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.down_proj.weight, PS(("mp", "fsdp"))),
-        )
-
-        # Layer norms
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].input_layernorm.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.input_layernorm.weight, PS()),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].post_attention_layernorm.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.post_attention_layernorm.weight, PS()),
-        )
+    # Load weights from accumulated state dict
+    for key, value in accumulated_state_dict.items():
+        if "embed_tokens" in key:
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.embed_tokens.weight,
+                eqx_model,
+                torch_to_jax_float32(value, PS(("mp", "fsdp")))
+            )
+        elif "norm" in key:
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.norm.weight,
+                eqx_model,
+                torch_to_jax(value, PS())
+            )
+        elif "lm_head" in key:
+            eqx_model = eqx.tree_at(
+                lambda t: t.lm_head.weight,
+                eqx_model,
+                torch_to_jax(value, PS(("fsdp", "mp")))
+            )
+        elif "self_attn.q_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].self_attn.q_proj.weight,
+                eqx_model,
+                torch_to_jax(value, PS(("fsdp", "mp")))
+            )
+        elif "self_attn.k_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].self_attn.k_proj.weight,
+                eqx_model,
+                torch_to_jax(value, PS(("fsdp", "mp")))
+            )
+        elif "self_attn.v_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].self_attn.v_proj.weight,
+                eqx_model,
+                torch_to_jax(value, PS(("fsdp", "mp")))
+            )
+        elif "self_attn.o_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].self_attn.o_proj.weight,
+                eqx_model,
+                torch_to_jax(value, PS(("mp", "fsdp")))
+            )
+        elif "mlp.gate_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].mlp.gate_proj.weight,
+                eqx_model,
+                torch_to_jax(value, PS(("fsdp", "mp")))
+            )
+        elif "mlp.up_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].mlp.up_proj.weight,
+                eqx_model,
+                torch_to_jax(value, PS(("fsdp", "mp")))
+            )
+        elif "mlp.down_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].mlp.down_proj.weight,
+                eqx_model,
+                torch_to_jax(value, PS(("mp", "fsdp")))
+            )
+        elif "input_layernorm" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].input_layernorm.weight,
+                eqx_model,
+                torch_to_jax(value, PS())
+            )
+        elif "post_attention_layernorm" in key:
+            layer_idx = int(key.split('.')[2])
+            eqx_model = eqx.tree_at(
+                lambda t: t.model.layers[layer_idx].post_attention_layernorm.weight,
+                eqx_model,
+                torch_to_jax(value, PS())
+            )
 
     return eqx_model, model_config
 
