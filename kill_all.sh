@@ -5,25 +5,30 @@ ZONE="us-central2-b"
 NUM_WORKERS=8
 
 for i in $(seq 0 $((NUM_WORKERS-1))); do
-  echo "=== Starting process for worker $i ==="
+  echo "=== Cleaning processes on worker $i ==="
   gcloud compute tpus tpu-vm ssh "$TPU_NODE" \
     --zone="$ZONE" \
     --worker="$i" -- '
-    echo "Looking for processes using TPU on worker '$i'..."
-    TPU_PROCS=$(sudo lsof -w /dev/accel0)
-    if [ -z "$TPU_PROCS" ]; then
-      echo "No processes found using TPU on worker '$i'"
+    echo "Looking for Python processes under worker account on worker '$i'..."
+    
+    # Find all Python processes under service accounts and their children
+    WORKER_PROCS=$(ps aux | grep "^sa_" | grep python | awk "{print \$2}")
+    
+    if [ -z "$WORKER_PROCS" ]; then
+      echo "No Python processes found under worker account on worker '$i'"
     else
       echo "Found processes on worker '$i':"
-      echo "$TPU_PROCS"
-      PID=$(echo "$TPU_PROCS" | grep python | head -1 | awk "{print \$2}")
-      if [ ! -z "$PID" ]; then
-        echo "Killing PID: $PID on worker '$i'"
-        sudo kill -9 $PID
-        echo "Process killed on worker '$i'"
-      else
-        echo "Could not extract PID on worker '$i'"
-      fi
+      ps aux | grep "^sa_" | grep python
+      
+      # Kill each process and its children
+      for pid in $WORKER_PROCS; do
+        echo "Killing process tree for PID: $pid on worker '$i'"
+        # Kill children first
+        sudo pkill -9 -P $pid
+        # Then kill the parent
+        sudo kill -9 $pid
+      done
+      echo "Processes killed on worker '$i'"
     fi
 
     # Remove the TPU lockfile if it exists
