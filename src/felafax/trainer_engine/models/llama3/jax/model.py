@@ -173,8 +173,12 @@ class LlamaLinear(eqx.Module):
         if rank > 0:
             # Initialize lora_A using Kaiming uniform initialization
             he_uniform = init.he_uniform()
+            if key is not None:
+                lora_key = jax.random.split(key, 1)[0]
+            else:
+                lora_key = jax.random.PRNGKey(99)
             self.lora_A = he_uniform(
-                keys[2], (in_features, rank), dtype=self.param_dtype
+                lora_key, (in_features, rank), dtype=self.param_dtype
             )
 
             # Initialize lora_B with zeros
