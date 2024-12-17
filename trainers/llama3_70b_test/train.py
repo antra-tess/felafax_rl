@@ -31,11 +31,21 @@ def get_worker_info():
     log(f"Identified as worker {worker_id}")
     return worker_id, 8
 
-# Get worker info
+# Initialize JAX first
 log("Getting worker info...")
 process_id, num_processes = get_worker_info()
 
-# Load model files before JAX initialization
+log(f"Setting JAX environment (process {process_id} of {num_processes})")
+os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
+os.environ['JAX_PROCESS_INDEX'] = str(process_id)
+
+log("Importing JAX...")
+import jax
+log("Initializing JAX distributed...")
+jax.distributed.initialize()
+log("JAX distributed initialization complete")
+
+# Now load model files
 log("Loading model files into memory...")
 local_path = "/tmp/model-shards"
 
@@ -74,7 +84,7 @@ for shard_idx in range(start_shard, end_shard + 1):
 
 log("All shards loaded into memory")
 
-# Import non-JAX dependencies first
+# Import remaining dependencies
 log("Importing core dependencies...")
 from datasets import load_dataset
 from transformers import LlamaConfig
@@ -82,17 +92,6 @@ from felafax.trainer_engine.data.data import SFTDataset, create_dataloader, Data
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
 log("Core dependencies imported")
-
-# Initialize JAX immediately after imports
-log(f"Setting JAX environment (process {process_id} of {num_processes})")
-os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
-os.environ['JAX_PROCESS_INDEX'] = str(process_id)
-
-log("Importing JAX...")
-import jax
-log("Initializing JAX distributed...")
-jax.distributed.initialize()
-log("JAX distributed initialization complete")
 
 # Small delay to ensure all workers are synchronized
 import time
