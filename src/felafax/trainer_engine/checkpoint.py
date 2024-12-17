@@ -212,6 +212,29 @@ def get_worker_shards(worker_id: int) -> Tuple[int, int]:
     }
     return shard_ranges[worker_id]
 
+def _get_layer_weight(model, layer_idx, component):
+    """Helper function to get layer weight reference."""
+    if "self_attn.q_proj" in component:
+        return model.model.layers[layer_idx].self_attn.q_proj.weight
+    elif "self_attn.k_proj" in component:
+        return model.model.layers[layer_idx].self_attn.k_proj.weight
+    elif "self_attn.v_proj" in component:
+        return model.model.layers[layer_idx].self_attn.v_proj.weight
+    elif "self_attn.o_proj" in component:
+        return model.model.layers[layer_idx].self_attn.o_proj.weight
+    elif "mlp.gate_proj" in component:
+        return model.model.layers[layer_idx].mlp.gate_proj.weight
+    elif "mlp.up_proj" in component:
+        return model.model.layers[layer_idx].mlp.up_proj.weight
+    elif "mlp.down_proj" in component:
+        return model.model.layers[layer_idx].mlp.down_proj.weight
+    elif "input_layernorm" in component:
+        return model.model.layers[layer_idx].input_layernorm.weight
+    elif "post_attention_layernorm" in component:
+        return model.model.layers[layer_idx].post_attention_layernorm.weight
+    else:
+        raise ValueError(f"Unknown component: {component}")
+
 def load_llama_from_hf(
     model_name: str,
     mesh: jax.sharding.Mesh,
@@ -303,141 +326,99 @@ def load_llama_from_hf(
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
-    # Transfer weights to TPU with proper sharding
-    print("Transferring weights to TPU with proper sharding...")
+    # Initialize model structure without weights
+    print("Initializing model structure...")
+    key = jax.random.PRNGKey(42)
+    model = LlamaForCausalLM(
+        model_config,
+        param_dtype=param_dtype,
+        compute_dtype=compute_dtype,
+        key=key,
+    )
+    print("Model structure initialized")
+
+    # Set up sharding specs
+    print("Setting up sharding specifications...")
+    sharding_specs = {
+        "embed_tokens": PS(("mp", "fsdp")),
+        "norm": PS(),
+        "lm_head": PS(("fsdp", "mp")),
+        "self_attn.q_proj": PS(("fsdp", "mp")),
+        "self_attn.k_proj": PS(("fsdp", "mp")),
+        "self_attn.v_proj": PS(("fsdp", "mp")),
+        "self_attn.o_proj": PS(("mp", "fsdp")),
+        "mlp.gate_proj": PS(("fsdp", "mp")),
+        "mlp.up_proj": PS(("fsdp", "mp")),
+        "mlp.down_proj": PS(("mp", "fsdp")),
+        "input_layernorm": PS(),
+        "post_attention_layernorm": PS(),
+    }
+
+    # Create sharding objects
+    print("Creating sharding objects...")
+    shardings = {
+        name: jax.sharding.NamedSharding(mesh, spec)
+        for name, spec in sharding_specs.items()
+    }
+
+    # Load weights into model structure
+    print("Loading weights into model structure...")
+    model_params, model_static = eqx.partition(model, eqx.is_array)
     
-    # Group weights by layer for more efficient transfer
-    layer_weights = {}
-    global_weights = {}
-    
+    # Create tree of weight shapes
+    weight_shapes = jax.tree_util.tree_map(lambda x: x.shape, model_params)
+    print("Weight shapes extracted")
+
+    # Create empty arrays with proper shapes and dtypes
+    empty_arrays = jax.tree_util.tree_map(
+        lambda x: jnp.zeros(x.shape, dtype=x.dtype), 
+        model_params
+    )
+    print("Empty arrays created")
+
+    # Update model with empty arrays
+    model = eqx.combine(empty_arrays, model_static)
+    print("Model updated with empty arrays")
+
+    # Now load actual weights from shards
     for key, value in accumulated_state_dict.items():
-        if any(x in key for x in ["self_attn", "mlp", "layernorm"]):
-            layer_idx = int(key.split('.')[2])
-            if layer_idx not in layer_weights:
-                layer_weights[layer_idx] = {}
-            layer_weights[layer_idx][key] = value
-        else:
-            global_weights[key] = value
-            
-    # First transfer global weights (embeddings, norms, etc.)
-    print("Transferring global weights...")
-    for key, value in global_weights.items():
+        print(f"\nProcessing weight: {key}")
         if "embed_tokens" in key:
-            weight_size = value.nbytes / (1024 * 1024)  # Size in MB
-            sharding = jax.sharding.NamedSharding(mesh, PS(("mp", "fsdp")))
-            print(f"  Sharding spec: {PS(('mp', 'fsdp'))}")
-            weight_jax = jax.device_put(value, sharding)
-            print(f"  Device placement: {weight_jax.sharding.mesh}")
-            print(f"  Memory per device: {weight_size / mesh.size:.2f}MB (if sharded correctly)")
             model = eqx.tree_at(
                 lambda m: m.model.embed_tokens.weight,
                 model,
-                weight_jax.astype(jnp.bfloat16)
+                jax.device_put(value, shardings["embed_tokens"])
             )
-            print(f"Transferred {key}")
         elif "norm" in key:
-            sharding = jax.sharding.NamedSharding(mesh, PS())
-            weight_jax = jax.device_put(value, sharding)
             model = eqx.tree_at(
                 lambda m: m.model.norm.weight,
                 model,
-                weight_jax.astype(jnp.bfloat16)
+                jax.device_put(value, shardings["norm"])
             )
-            print(f"Transferred {key}")
         elif "lm_head" in key:
-            sharding = jax.sharding.NamedSharding(mesh, PS(("fsdp", "mp")))
-            weight_jax = jax.device_put(value, sharding)
             model = eqx.tree_at(
                 lambda m: m.lm_head.weight,
                 model,
-                weight_jax.astype(param_dtype)
+                jax.device_put(value, shardings["lm_head"])
             )
-            print(f"Transferred {key}")
-            
-    # Then transfer layer weights one layer at a time
-    print("Transferring layer weights...")
-    for layer_idx in sorted(layer_weights.keys()):
-        print(f"Processing layer {layer_idx}...")
-        layer_dict = layer_weights[layer_idx]
-        
-        # Process attention weights
-        for key, value in layer_dict.items():
-            if "self_attn.q_proj" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.self_attn.q_proj.weight[layer_idx],
-                    model,
-                    weight_jax.astype(param_dtype)
-                )
-            elif "self_attn.k_proj" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.self_attn.k_proj.weight[layer_idx],
-                    model,
-                    weight_jax.astype(param_dtype)
-                )
-            elif "self_attn.v_proj" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.self_attn.v_proj.weight[layer_idx],
-                    model,
-                    weight_jax.astype(param_dtype)
-                )
-            elif "self_attn.o_proj" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS("mp", "fsdp"))
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.self_attn.o_proj.weight[layer_idx],
-                    model,
-                    weight_jax.astype(param_dtype)
-                )
-            elif "mlp.gate_proj" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.mlp.gate_proj.weight[layer_idx],
-                    model,
-                    weight_jax.astype(param_dtype)
-                )
-            elif "mlp.up_proj" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.mlp.up_proj.weight[layer_idx],
-                    model,
-                    weight_jax.astype(param_dtype)
-                )
-            elif "mlp.down_proj" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS("mp", "fsdp"))
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.mlp.down_proj.weight[layer_idx],
-                    model,
-                    weight_jax.astype(param_dtype)
-                )
-            elif "input_layernorm" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS())
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.input_layernorm.weight[layer_idx],
-                    model,
-                    weight_jax.astype(jnp.bfloat16)
-                )
-            elif "post_attention_layernorm" in key:
-                sharding = jax.sharding.NamedSharding(mesh, PS())
-                weight_jax = jax.device_put(value, sharding)
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.post_attention_layernorm.weight[layer_idx],
-                    model,
-                    weight_jax.astype(jnp.bfloat16)
-                )
-        
-        # Clean up layer weights after transfer
-        del layer_dict
-        print(f"Layer {layer_idx} transferred")
+        else:
+            # Handle layer weights
+            if any(x in key for x in ["self_attn", "mlp", "layernorm"]):
+                layer_idx = int(key.split('.')[2])
+                
+                # Determine which component this weight belongs to
+                for component in sharding_specs.keys():
+                    if component in key:
+                        sharding = shardings[component]
+                        target_fn = lambda m, i=layer_idx, c=component: _get_layer_weight(m, i, c)
+                        model = eqx.tree_at(
+                            target_fn,
+                            model,
+                            jax.device_put(value, sharding)
+                        )
+                        break
+
+    print("All weights loaded into model structure")
 
     return model, model_config
 
