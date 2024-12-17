@@ -246,18 +246,16 @@ def load_llama_from_hf(
     print(f"Loading model for worker {worker_id}")
 
     # Get worker ID and shard range
-    hostname = os.uname()[1]
-    worker_id = int(hostname.split('w-')[1]) if 'w-' in hostname else 0
     start_shard, end_shard = get_worker_shards(worker_id)
     print(f"Worker {worker_id} loading shards {start_shard}-{end_shard}")
 
-    # Load config and create model
+    # Load config and create model config
     print("Loading config from file...")
     with open(os.path.join(model_name, "config.json")) as f:
         config_data = json.load(f)
     print("Config loaded successfully")
 
-    print("Creating JAX model config...")
+    print("Creating model config...")
     model_config = LlamaConfig(
         vocab_size=config_data["vocab_size"],
         hidden_size=config_data["hidden_size"],
@@ -273,41 +271,40 @@ def load_llama_from_hf(
         param_dtype=param_dtype,
         compute_dtype=compute_dtype
     )
-    print("JAX model config created")
+    print("Model config created")
 
-    print("Initializing JAX model...")
-    key = jax.random.PRNGKey(42)
-    model = LlamaForCausalLM(
-        model_config,
-        param_dtype=param_dtype,
-        compute_dtype=compute_dtype,
-        key=key,
-    )
-    print("JAX model initialized")
-
-    # Set up JAX conversion functions
-    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
-    torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
-
-    # Load and process shards
-    print("Loading weights from shards...")
+    # Load all shards into CPU memory
+    print("Loading weights into CPU memory...")
     accumulated_state_dict = {}
-    
     for shard_idx in range(start_shard, end_shard + 1):
         shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
         shard_path = os.path.join(model_name, shard_file)
         print(f"Loading shard: {shard_path}")
-        
-        shard_dict = safetensors.torch.load_file(shard_path)
-        for key, value in shard_dict.items():
-            accumulated_state_dict[key] = value
-        print(f"Loaded and accumulated shard {shard_idx} successfully")
-        
-        # Clean up shard dict immediately
-        del shard_dict
-    
-    # Load accumulated weights into model
-    print("Converting weights to JAX format...")
+        with jax.default_device(jax.devices('cpu')[0]):
+            shard_dict = safetensors.torch.load_file(shard_path)
+            accumulated_state_dict.update(shard_dict)
+            del shard_dict  # Free memory immediately
+        print(f"Loaded shard {shard_idx} into CPU memory")
+
+    # Initialize model on CPU
+    print("Initializing model structure on CPU...")
+    with jax.default_device(jax.devices('cpu')[0]):
+        key = jax.random.PRNGKey(42)
+        model = LlamaForCausalLM(
+            model_config,
+            param_dtype=param_dtype,
+            compute_dtype=compute_dtype,
+            key=key,
+        )
+    print("Model structure initialized on CPU")
+
+    # Set up JAX conversion functions
+    print("Setting up TPU transfer functions...")
+    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
+    torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
+
+    # Transfer weights to TPU with proper sharding
+    print("Transferring weights to TPU with sharding...")
     for key, value in accumulated_state_dict.items():
         if "embed_tokens" in key:
             model = eqx.tree_at(
