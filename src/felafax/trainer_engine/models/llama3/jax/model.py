@@ -148,6 +148,8 @@ class LlamaLinear(eqx.Module):
     rank: int = 0
     param_dtype: Any
     compute_dtype: Any
+    in_features: int
+    out_features: int
 
     # Class variable to track total memory allocated
     total_memory_mb = 0
