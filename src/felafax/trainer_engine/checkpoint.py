@@ -377,30 +377,49 @@ def load_llama_from_hf(
 
     # Function to create sharded array from local data
     def make_sharded_array(local_data, global_shape, sharding_spec):
-        # Create empty global array with correct shape
-        global_array = np.zeros(global_shape, dtype=local_data.dtype)
-        
-        # Get worker info
-        worker_id = jax.process_index()
-        start_shard, end_shard = get_worker_shards(worker_id)
-        
-        # Calculate this worker's slice of the global array
-        total_elements = np.prod(global_shape)
-        elements_per_worker = total_elements // 8  # 8 workers
-        start_idx = worker_id * elements_per_worker
-        end_idx = start_idx + elements_per_worker
-        
-        # Place local data into the correct slice of global array
-        flat_global = global_array.reshape(-1)
-        flat_local = local_data.reshape(-1)
-        flat_global[start_idx:end_idx] = flat_local
-        
         # Create sharding for the global array
         sharding = jax.sharding.NamedSharding(mesh, sharding_spec)
         
-        # Create globally consistent array using make_array_from_callback
+        # Get worker info
+        worker_id = jax.process_index()
+        
+        # Calculate proper slices based on sharding spec
+        def get_slice_for_worker(worker_id, global_shape, sharding):
+            # Get mesh axes from sharding spec
+            mesh_axes = sharding.spec
+            
+            # Calculate slice for each dimension
+            slices = []
+            for dim_size, dim_spec in zip(global_shape, mesh_axes):
+                if dim_spec == "mp":
+                    # Model parallel dimension - split across TPU cores (4)
+                    chunk_size = dim_size // 4
+                    start = (worker_id % 4) * chunk_size
+                    end = start + chunk_size
+                    slices.append(slice(start, end))
+                elif dim_spec == "fsdp":
+                    # FSDP dimension - split across workers (8)
+                    chunk_size = dim_size // 8
+                    start = (worker_id // 4) * chunk_size
+                    end = start + chunk_size
+                    slices.append(slice(start, end))
+                else:
+                    # No sharding on this dimension
+                    slices.append(slice(0, dim_size))
+            return tuple(slices)
+        
+        # Get this worker's slice of the global array
+        worker_slice = get_slice_for_worker(worker_id, global_shape, sharding)
+        
+        # Create callback function for make_array_from_callback
         def callback(idx):
-            return global_array[idx]
+            # Check if these indices belong to this worker
+            if all(s.start <= i < s.stop for s, i in zip(worker_slice, idx)):
+                # Map global indices to local indices
+                local_idx = tuple(i - s.start for i, s in zip(idx, worker_slice))
+                return local_data[local_idx]
+            # Return zeros for indices that don't belong to this worker
+            return np.zeros((), dtype=local_data.dtype)
             
         return jax.make_array_from_callback(global_shape, sharding, callback)
 
