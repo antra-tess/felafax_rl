@@ -144,6 +144,8 @@ def main():
         base_dir=f"/dev/shm/checkpoints/worker_{process_id}",
         use_lora=True,
         lora_rank=8,
+        param_dtype="bfloat16",
+        compute_dtype="bfloat16",
     )
     
     # Load tokenizer from local path
