@@ -304,89 +304,112 @@ def load_llama_from_hf(
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
     # Transfer weights to TPU with proper sharding
-    print("Transferring weights to TPU with sharding...")
+    print("Transferring weights to TPU with proper sharding...")
+    
+    # Group weights by layer for more efficient transfer
+    layer_weights = {}
+    global_weights = {}
+    
     for key, value in accumulated_state_dict.items():
+        if any(x in key for x in ["self_attn", "mlp", "layernorm"]):
+            layer_idx = int(key.split('.')[2])
+            if layer_idx not in layer_weights:
+                layer_weights[layer_idx] = {}
+            layer_weights[layer_idx][key] = value
+        else:
+            global_weights[key] = value
+            
+    # First transfer global weights (embeddings, norms, etc.)
+    print("Transferring global weights...")
+    for key, value in global_weights.items():
         if "embed_tokens" in key:
             model = eqx.tree_at(
                 lambda m: m.model.embed_tokens.weight,
                 model,
                 torch_to_jax_float32(value, PS(("mp", "fsdp")))
             )
+            print(f"Transferred {key}")
         elif "norm" in key:
             model = eqx.tree_at(
                 lambda m: m.model.norm.weight,
                 model,
                 torch_to_jax_float32(value, PS())
             )
+            print(f"Transferred {key}")
         elif "lm_head" in key:
             model = eqx.tree_at(
                 lambda m: m.lm_head.weight,
                 model,
                 torch_to_jax(value, PS(("fsdp", "mp")))
             )
-        elif "self_attn.q_proj" in key:
-            layer_idx = int(key.split('.')[2])  # Extract layer index
-            model = eqx.tree_at(
-                lambda m: m.model.layers.self_attn.q_proj.weight[layer_idx],
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "self_attn.k_proj" in key:
-            layer_idx = int(key.split('.')[2])
-            model = eqx.tree_at(
-                lambda m: m.model.layers.self_attn.k_proj.weight[layer_idx],
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "self_attn.v_proj" in key:
-            layer_idx = int(key.split('.')[2])
-            model = eqx.tree_at(
-                lambda m: m.model.layers.self_attn.v_proj.weight[layer_idx],
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "self_attn.o_proj" in key:
-            layer_idx = int(key.split('.')[2])
-            model = eqx.tree_at(
-                lambda m: m.model.layers.self_attn.o_proj.weight[layer_idx],
-                model,
-                torch_to_jax(value, PS("mp", "fsdp"))
-            )
-        elif "mlp.gate_proj" in key:
-            layer_idx = int(key.split('.')[2])
-            model = eqx.tree_at(
-                lambda m: m.model.layers.mlp.gate_proj.weight[layer_idx],
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "mlp.up_proj" in key:
-            layer_idx = int(key.split('.')[2])
-            model = eqx.tree_at(
-                lambda m: m.model.layers.mlp.up_proj.weight[layer_idx],
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "mlp.down_proj" in key:
-            layer_idx = int(key.split('.')[2])
-            model = eqx.tree_at(
-                lambda m: m.model.layers.mlp.down_proj.weight[layer_idx],
-                model,
-                torch_to_jax(value, PS("mp", "fsdp"))
-            )
-        elif "input_layernorm" in key:
-            layer_idx = int(key.split('.')[2])
-            model = eqx.tree_at(
-                lambda m: m.model.layers.input_layernorm.weight[layer_idx],
-                model,
-                torch_to_jax_float32(value, PS())
-            )
-        elif "post_attention_layernorm" in key:
-            layer_idx = int(key.split('.')[2])
-            model = eqx.tree_at(
-                lambda m: m.model.layers.post_attention_layernorm.weight[layer_idx],
-                model,
-                torch_to_jax_float32(value, PS())
-            )
+            print(f"Transferred {key}")
+            
+    # Then transfer layer weights one layer at a time
+    print("Transferring layer weights...")
+    for layer_idx in sorted(layer_weights.keys()):
+        print(f"Processing layer {layer_idx}...")
+        layer_dict = layer_weights[layer_idx]
+        
+        # Process attention weights
+        for key, value in layer_dict.items():
+            if "self_attn.q_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.self_attn.q_proj.weight[layer_idx],
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "self_attn.k_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.self_attn.k_proj.weight[layer_idx],
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "self_attn.v_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.self_attn.v_proj.weight[layer_idx],
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "self_attn.o_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.self_attn.o_proj.weight[layer_idx],
+                    model,
+                    torch_to_jax(value, PS("mp", "fsdp"))
+                )
+            elif "mlp.gate_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.mlp.gate_proj.weight[layer_idx],
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "mlp.up_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.mlp.up_proj.weight[layer_idx],
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "mlp.down_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.mlp.down_proj.weight[layer_idx],
+                    model,
+                    torch_to_jax(value, PS("mp", "fsdp"))
+                )
+            elif "input_layernorm" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.input_layernorm.weight[layer_idx],
+                    model,
+                    torch_to_jax_float32(value, PS())
+                )
+            elif "post_attention_layernorm" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.post_attention_layernorm.weight[layer_idx],
+                    model,
+                    torch_to_jax_float32(value, PS())
+                )
+        
+        # Clean up layer weights after transfer
+        del layer_dict
+        print(f"Layer {layer_idx} transferred")
 
     return model, model_config
 
