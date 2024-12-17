@@ -5,12 +5,18 @@ import numpy as np
 import safetensors.torch
 from datetime import datetime
 from transformers import AutoTokenizer
+from jax_smi import initialise_tracking
 
 def log(msg):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
     print(f"[{timestamp}] {msg}", flush=True)
 
 log("Starting script execution")
+
+# Initialize JAX SMI tracking
+log("Initializing JAX SMI tracking...")
+initialise_tracking()
+log("JAX SMI tracking initialized")
 
 # Check for HF_TOKEN at startup
 if not os.environ.get('HF_TOKEN'):
