@@ -281,8 +281,8 @@ def load_llama_from_hf(
         shard_path = os.path.join(model_name, shard_file)
         print(f"Loading shard: {shard_path}")
         shard_dict = safetensors.torch.load_file(shard_path)
-        # Convert tensors to NumPy arrays
-        shard_dict = {k: np.array(v) for k, v in shard_dict.items()}
+        # Convert tensors to NumPy arrays, handling bfloat16
+        shard_dict = {k: v.to(torch.float32).numpy() for k, v in shard_dict.items()}
         accumulated_state_dict.update(shard_dict)
         del shard_dict  # Free memory immediately
         print(f"Loaded shard {shard_idx} into CPU memory")
