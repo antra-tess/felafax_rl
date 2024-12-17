@@ -190,7 +190,13 @@ def _make_torch_to_jax(dtype, mesh):
     """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
 
     def _torch_to_jax(tensor, sharding_spec):
-        jax_array = jnp.array(tensor.detach().numpy(), dtype=dtype)
+        # Handle both torch tensors and numpy arrays
+        if hasattr(tensor, 'detach'):
+            # It's a torch tensor
+            jax_array = jnp.array(tensor.detach().numpy(), dtype=dtype)
+        else:
+            # It's already a numpy array
+            jax_array = jnp.array(tensor, dtype=dtype)
         sharding = NamedSharding(mesh, sharding_spec)
         return jax.device_put(jax_array, sharding)
 
