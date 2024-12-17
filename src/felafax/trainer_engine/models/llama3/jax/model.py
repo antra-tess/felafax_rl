@@ -588,6 +588,7 @@ class LlamaModel(eqx.Module):
         if key is None:
             key = jax.random.PRNGKey(99)
 
+        # Initialize embedding without allocating weights yet
         self.embed_tokens = LlamaEmbedding(
             config.vocab_size,
             config.hidden_size,
@@ -596,31 +597,18 @@ class LlamaModel(eqx.Module):
             key=key,
         )
 
-        layer_keys = jax.random.split(key, config.num_hidden_layers)
+        # Create layer list without allocating weights
+        self.layers = [
+            LlamaDecoderLayer(
+                config,
+                param_dtype=self.param_dtype,
+                compute_dtype=self.compute_dtype,
+                key=None,  # Don't allocate weights yet
+            )
+            for _ in range(config.num_hidden_layers)
+        ]
 
-        with jax.ensure_compile_time_eval():
-            self.use_optimized_decoder = use_optimized_decoder
-            print(f"use_optimized_decoder: {self.use_optimized_decoder}")
-            if self.use_optimized_decoder:
-                # LlamaDecoderLayers
-                make_layer = lambda k: LlamaDecoderLayer(
-                    config=config,
-                    param_dtype=param_dtype,
-                    compute_dtype=compute_dtype,
-                    key=k,
-                )
-                self.layers = eqx.filter_vmap(make_layer)(layer_keys)
-            else:
-                self.layers = [
-                    LlamaDecoderLayer(
-                        config,
-                        param_dtype=self.param_dtype,
-                        compute_dtype=self.compute_dtype,
-                        key=layer_keys[i],
-                    )
-                    for i in range(config.num_hidden_layers)
-                ]
-
+        # Initialize normalization layer without weights
         self.norm = LlamaRMSNorm(
             config.hidden_size,
             config.rms_norm_eps,
