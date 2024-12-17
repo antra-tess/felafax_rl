@@ -585,15 +585,39 @@ def load_llama_from_hf_unoptimized(
         eqx_model: LlamaForCausalLM model with specified dtypes
         model_config: Configuration of the model
     """
-    # Load HF model
-    hf_model = HFLlamaForCausalLM.from_pretrained(
-        model_name, torch_dtype=torch.float32, token=token
-    )
+    # Get worker ID from hostname
+    hostname = os.uname()[1]
+    worker_id = int(hostname.split('w-')[1]) if 'w-' in hostname else 0
+    print(f"Loading model for worker {worker_id}")
 
-    # Create config and initialize Equinox model
-    model_config = create_llama_config_from_hf_model(hf_model)
-    model_config.lora_rank = lora_rank
-    model_config.use_optimized_decoder = False
+    # Get worker ID and shard range
+    start_shard, end_shard = get_worker_shards(worker_id)
+    print(f"Worker {worker_id} loading shards {start_shard}-{end_shard}")
+
+    # Load config and create model config
+    print("Loading config from file...")
+    with open(os.path.join(model_name, "config.json")) as f:
+        config_data = json.load(f)
+    print("Config loaded successfully")
+
+    print("Creating model config...")
+    model_config = LlamaConfig(
+        vocab_size=config_data["vocab_size"],
+        hidden_size=config_data["hidden_size"],
+        intermediate_size=config_data["intermediate_size"],
+        num_hidden_layers=config_data["num_hidden_layers"],
+        num_attention_heads=config_data["num_attention_heads"],
+        num_key_value_heads=config_data["num_key_value_heads"],
+        max_position_embeddings=config_data["max_position_embeddings"],
+        rms_norm_eps=config_data["rms_norm_eps"],
+        rope_theta=config_data.get("rope_theta", 10000.0),
+        attention_bias=config_data.get("attention_bias", False),
+        lora_rank=lora_rank,
+        param_dtype=param_dtype,
+        compute_dtype=compute_dtype,
+        use_optimized_decoder=False
+    )
+    print("Model config created")
 
     key = jax.random.PRNGKey(99)
     eqx_model = LlamaForCausalLM(
