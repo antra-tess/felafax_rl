@@ -251,13 +251,12 @@ def load_llama_from_hf(
     start_shard, end_shard = get_worker_shards(worker_id)
     print(f"Worker {worker_id} loading shards {start_shard}-{end_shard}")
 
-    # Load config from file
+    # Load config and create model
     print("Loading config from file...")
     with open(os.path.join(model_name, "config.json")) as f:
         config_data = json.load(f)
     print("Config loaded successfully")
 
-    # Create JAX model config from loaded data
     print("Creating JAX model config...")
     model_config = LlamaConfig(
         vocab_size=config_data["vocab_size"],
@@ -276,7 +275,6 @@ def load_llama_from_hf(
     )
     print("JAX model config created")
 
-    # Initialize model with config
     print("Initializing JAX model...")
     key = jax.random.PRNGKey(42)
     model = LlamaForCausalLM(
@@ -287,139 +285,111 @@ def load_llama_from_hf(
     )
     print("JAX model initialized")
 
-    # Create state dict to accumulate weights
-    accumulated_state_dict = {}
-
-    # Load shards assigned to this worker
-    for shard_idx in range(start_shard, end_shard + 1):
-        shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
-        shard_path = os.path.join(model_name, shard_file)
-        print(f"Loading shard: {shard_path}")
-        shard_dict = safetensors.torch.load_file(shard_path)
-        
-        # Accumulate weights from this shard
-        for key, value in shard_dict.items():
-            if key not in accumulated_state_dict:
-                accumulated_state_dict[key] = value
-            else:
-                # For overlapping keys, take the newer value
-                accumulated_state_dict[key] = value
-        
-        # Clean up shard dict after accumulating
-        del shard_dict
-
-    print("Loading weights into JAX model...")
-    # Load weights directly from accumulated state dict into JAX model
-    for key, value in accumulated_state_dict.items():
-        # TODO: Add weight loading logic here
-        pass
-    print("Weights loaded successfully")
-    
-    # Clean up accumulated state dict to free memory
-    print("Cleaning up accumulated state dict...")
-    del accumulated_state_dict
-    print("Memory cleanup complete")
-
-    # Conversion functions
+    # Set up JAX conversion functions
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
+    # Load and process shards
     print("Loading weights from shards...")
-    
-    # Convert weights to JAX arrays with proper sharding
-    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
-    torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
-    
-    # Initialize state dict to accumulate weights
     accumulated_state_dict = {}
     
-    # Load and accumulate weights from each shard
     for shard_idx in range(start_shard, end_shard + 1):
         shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
         shard_path = os.path.join(model_name, shard_file)
         print(f"Loading shard: {shard_path}")
-        shard_dict = safetensors.torch.load_file(shard_path)
         
-        # Accumulate weights from this shard
+        shard_dict = safetensors.torch.load_file(shard_path)
         for key, value in shard_dict.items():
             accumulated_state_dict[key] = value
         print(f"Loaded and accumulated shard {shard_idx} successfully")
+        
+        # Clean up shard dict immediately
+        del shard_dict
     
-    # Now load accumulated weights into model
+    # Load accumulated weights into model
+    print("Converting weights to JAX format...")
     for key, value in accumulated_state_dict.items():
-        for key, value in shard_dict.items():
-            if "embed_tokens" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.embed_tokens.weight,
-                    model,
-                    torch_to_jax_float32(value, PS(("mp", "fsdp")))
-                )
-            elif "norm" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.norm.weight,
-                    model,
-                    torch_to_jax_float32(value, PS())
-                )
-            elif "lm_head" in key:
-                model = eqx.tree_at(
-                    lambda m: m.lm_head.weight,
-                    model,
-                    torch_to_jax(value, PS(("fsdp", "mp")))
-                )
-            elif "self_attn.q_proj" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.self_attn.q_proj.weight,
-                    model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
-                )
-            elif "self_attn.k_proj" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.self_attn.k_proj.weight,
-                    model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
-                )
-            elif "self_attn.v_proj" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.self_attn.v_proj.weight,
-                    model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
-                )
-            elif "self_attn.o_proj" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.self_attn.o_proj.weight,
-                    model,
-                    torch_to_jax(value, PS("mp", "fsdp"))
-                )
-            elif "mlp.gate_proj" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.mlp.gate_proj.weight,
-                    model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
-                )
-            elif "mlp.up_proj" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.mlp.up_proj.weight,
-                    model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
-                )
-            elif "mlp.down_proj" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.mlp.down_proj.weight,
-                    model,
-                    torch_to_jax(value, PS("mp", "fsdp"))
-                )
-            elif "input_layernorm" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.input_layernorm.weight,
-                    model,
-                    torch_to_jax_float32(value, PS())
-                )
-            elif "post_attention_layernorm" in key:
-                model = eqx.tree_at(
-                    lambda m: m.model.layers.post_attention_layernorm.weight,
-                    model,
-                    torch_to_jax_float32(value, PS())
-                )
+        if "embed_tokens" in key:
+            model = eqx.tree_at(
+                lambda m: m.model.embed_tokens.weight,
+                model,
+                torch_to_jax_float32(value, PS(("mp", "fsdp")))
+            )
+        elif "norm" in key:
+            model = eqx.tree_at(
+                lambda m: m.model.norm.weight,
+                model,
+                torch_to_jax_float32(value, PS())
+            )
+        elif "lm_head" in key:
+            model = eqx.tree_at(
+                lambda m: m.lm_head.weight,
+                model,
+                torch_to_jax(value, PS(("fsdp", "mp")))
+            )
+        elif "self_attn.q_proj" in key:
+            layer_idx = int(key.split('.')[2])  # Extract layer index
+            model = eqx.tree_at(
+                lambda m: m.model.layers.self_attn.q_proj.weight[layer_idx],
+                model,
+                torch_to_jax(value, PS("fsdp", "mp"))
+            )
+        elif "self_attn.k_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            model = eqx.tree_at(
+                lambda m: m.model.layers.self_attn.k_proj.weight[layer_idx],
+                model,
+                torch_to_jax(value, PS("fsdp", "mp"))
+            )
+        elif "self_attn.v_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            model = eqx.tree_at(
+                lambda m: m.model.layers.self_attn.v_proj.weight[layer_idx],
+                model,
+                torch_to_jax(value, PS("fsdp", "mp"))
+            )
+        elif "self_attn.o_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            model = eqx.tree_at(
+                lambda m: m.model.layers.self_attn.o_proj.weight[layer_idx],
+                model,
+                torch_to_jax(value, PS("mp", "fsdp"))
+            )
+        elif "mlp.gate_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            model = eqx.tree_at(
+                lambda m: m.model.layers.mlp.gate_proj.weight[layer_idx],
+                model,
+                torch_to_jax(value, PS("fsdp", "mp"))
+            )
+        elif "mlp.up_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            model = eqx.tree_at(
+                lambda m: m.model.layers.mlp.up_proj.weight[layer_idx],
+                model,
+                torch_to_jax(value, PS("fsdp", "mp"))
+            )
+        elif "mlp.down_proj" in key:
+            layer_idx = int(key.split('.')[2])
+            model = eqx.tree_at(
+                lambda m: m.model.layers.mlp.down_proj.weight[layer_idx],
+                model,
+                torch_to_jax(value, PS("mp", "fsdp"))
+            )
+        elif "input_layernorm" in key:
+            layer_idx = int(key.split('.')[2])
+            model = eqx.tree_at(
+                lambda m: m.model.layers.input_layernorm.weight[layer_idx],
+                model,
+                torch_to_jax_float32(value, PS())
+            )
+        elif "post_attention_layernorm" in key:
+            layer_idx = int(key.split('.')[2])
+            model = eqx.tree_at(
+                lambda m: m.model.layers.post_attention_layernorm.weight[layer_idx],
+                model,
+                torch_to_jax_float32(value, PS())
+            )
 
     return model, model_config
 
