@@ -371,37 +371,36 @@ def load_llama_from_hf(
     print("Loading weights into model structure...")
     model_params, model_static = eqx.partition(model, eqx.is_array)
     
-    # Create tree of weight shapes
+    # Create tree of weight shapes and shardings
     weight_shapes = jax.tree_util.tree_map(lambda x: x.shape, model_params)
     print("Weight shapes extracted")
 
-    # Create empty arrays with proper shapes and dtypes
-    empty_arrays = jax.tree_util.tree_map(
-        lambda x: jnp.zeros(x.shape, dtype=x.dtype), 
-        model_params
-    )
-    print("Empty arrays created")
+    # Function to create sharded array from local data
+    def make_sharded_array(local_data, global_shape, sharding):
+        def callback(indices):
+            # Each worker returns its local slice of data
+            worker_id = jax.process_index()
+            start_shard, end_shard = get_worker_shards(worker_id)
+            if worker_id == jax.process_index():
+                return local_data
+            return np.zeros(local_data.shape, dtype=local_data.dtype)
+            
+        return jax.make_array_from_callback(global_shape, sharding, callback)
 
-    # Update model with empty arrays
-    model = eqx.combine(empty_arrays, model_static)
-    print("Model updated with empty arrays")
-
-    # Broadcast accumulated_state_dict from worker 0 to all workers
-    print("Broadcasting weights from worker 0...")
-    accumulated_state_dict = jax.experimental.multihost_utils.broadcast_one_to_all(accumulated_state_dict)
-    print("Weights broadcast complete")
-
-    # Now all workers have the same state dict, load weights
+    # Load weights into model structure
     for key, value in accumulated_state_dict.items():
         print(f"\nProcessing weight: {key}")
         if "embed_tokens" in key:
-            # Create global array view first
-            global_array = jnp.array(value)
-            # Then device_put with sharding
+            # Create sharded array from local data
+            sharded_array = make_sharded_array(
+                value, 
+                value.shape,
+                shardings["embed_tokens"]
+            )
             model = eqx.tree_at(
                 lambda m: m.model.embed_tokens.weight,
                 model,
-                jax.device_put(global_array, shardings["embed_tokens"])
+                sharded_array
             )
         elif "norm" in key:
             model = eqx.tree_at(
