@@ -162,22 +162,11 @@ class LlamaLinear(eqx.Module):
     ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
-        if key is not None:
-            keys = jax.random.split(key, 4)
-        else:
-            keys = jax.random.split(jax.random.PRNGKey(99), 4)
-
-        self.weight = jax.random.normal(
-            keys[0],
-            (out_features, in_features),
-            dtype=self.param_dtype,
-        )
-        self.bias = (
-            jax.random.normal(keys[1], (out_features,), dtype=self.param_dtype)
-            if bias
-            else None
-        )
-
+        
+        # Initialize with zeros since we'll load actual weights from shards
+        self.weight = jnp.zeros((out_features, in_features), dtype=self.param_dtype)
+        self.bias = jnp.zeros((out_features,), dtype=self.param_dtype) if bias else None
+        
         self.rank = rank
         self.alpha = alpha
 
