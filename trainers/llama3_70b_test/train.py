@@ -64,6 +64,12 @@ if 'rope_scaling' in config_data:
     }
     log("Added 'type' field to rope_scaling configuration")
     log(f"Updated config rope_scaling: {config_data['rope_scaling']}")
+    
+    # Write the modified config back to file
+    config_path = os.path.join(local_path, "config.json")
+    with open(config_path, 'w') as f:
+        json.dump(config_data, f, indent=2)
+    log("Updated config written back to file")
 
 log("Config loaded and updated successfully")
 
