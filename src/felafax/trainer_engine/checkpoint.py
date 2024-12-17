@@ -324,14 +324,21 @@ def load_llama_from_hf(
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
-    print("Loading weights from loaded shards...")
+    print("Loading weights from accumulated state dict...")
     
     # Convert weights to JAX arrays with proper sharding
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
     
-    # Update model weights from loaded shards
+    # Update model weights from accumulated state dict
+    accumulated_state_dict = {}
     for shard_idx, shard_dict in loaded_shards.items():
+        # Accumulate weights from each shard
+        for key, value in shard_dict.items():
+            accumulated_state_dict[key] = value
+    
+    # Now load from accumulated state dict
+    for key, value in accumulated_state_dict.items():
         for key, value in shard_dict.items():
             if "embed_tokens" in key:
                 model = eqx.tree_at(
