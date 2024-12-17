@@ -1,4 +1,5 @@
 # Get HF_TOKEN from local environment
+git push
 if [ -z "$HF_TOKEN" ]; then
     echo "Error: HF_TOKEN environment variable is not set"
     exit 1

@@ -15,8 +15,8 @@ memory_profiler>=0.61.0
 # Deep Learning frameworks and core ML
 torch==2.1.2
 torchvision==0.16.2
-jax==0.4.37
-jaxlib==0.4.36
+jax==0.4.31
+jaxlib==0.4.31
 libtpu @ https://storage.googleapis.com/cloud-tpu-tpuvm-artifacts/wheels/libtpu/libtpu-1.0.0-py3-none-any.whl
 equinox==0.11.8
 optax>=0.1.7

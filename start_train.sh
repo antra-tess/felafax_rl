@@ -14,4 +14,4 @@ export JAX_PROCESS_INDEX=$(hostname | grep -oP "\d+$")
 
 # Run the training script
 echo "Starting training on worker ${JAX_PROCESS_INDEX}"
-python trainers/llama3_70b_test/train.py
+python -u trainers/llama3_70b_test/train.py
