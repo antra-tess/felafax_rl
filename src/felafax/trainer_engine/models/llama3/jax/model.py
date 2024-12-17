@@ -584,6 +584,7 @@ class LlamaModel(eqx.Module):
     ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
+        self.use_optimized_decoder = use_optimized_decoder
 
         if key is None:
             key = jax.random.PRNGKey(99)
