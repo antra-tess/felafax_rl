@@ -167,6 +167,7 @@ def main():
         lora_rank=8,
         param_dtype="bfloat16",
         compute_dtype="bfloat16",
+        use_optimized_decoder=False,
     )
     
     # Load tokenizer from local path
