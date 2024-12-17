@@ -167,22 +167,16 @@ class LlamaLinear(eqx.Module):
         else:
             keys = jax.random.split(jax.random.PRNGKey(99), 4)
 
-        # Initialize weights directly with JAX random
-        weight_shape = (out_features, in_features)
         self.weight = jax.random.normal(
             keys[0],
-            weight_shape,
-            dtype=self.param_dtype
-        ) * 0.02
-
-        if bias:
-            self.bias = jax.random.normal(
-                keys[1],
-                (out_features,),
-                dtype=self.param_dtype
-            ) * 0.02
-        else:
-            self.bias = None
+            (out_features, in_features),
+            dtype=self.param_dtype,
+        )
+        self.bias = (
+            jax.random.normal(keys[1], (out_features,), dtype=self.param_dtype)
+            if bias
+            else None
+        )
 
         self.rank = rank
         self.alpha = alpha
