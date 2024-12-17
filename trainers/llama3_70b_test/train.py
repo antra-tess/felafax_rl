@@ -53,7 +53,13 @@ local_path = "/tmp/model-shards"
 log("Loading config.json...")
 with open(os.path.join(local_path, "config.json")) as f:
     config_data = json.load(f)
-log("Config loaded successfully")
+    
+# Add 'type' to rope_scaling if needed
+if 'rope_scaling' in config_data:
+    config_data['rope_scaling']['type'] = config_data['rope_scaling']['rope_type']
+    log("Added 'type' field to rope_scaling configuration")
+
+log("Config loaded and updated successfully")
 
 # Get shard range for this worker
 def get_worker_shards(worker_id):
