@@ -377,20 +377,31 @@ def load_llama_from_hf(
 
     # Function to create sharded array from local data
     def make_sharded_array(local_data, global_shape, sharding_spec):
-        def callback(idx):
-            # Get worker info
-            worker_id = jax.process_index()
-            start_shard, end_shard = get_worker_shards(worker_id)
-            
-            # Calculate which portion of the global array this worker owns
-            worker_slice = tuple(slice(s.start, s.stop) for s in idx)
-            
-            # Check if this index falls within our shard range
-            if worker_id == jax.process_index():
-                return local_data[worker_slice]
-            return np.zeros(tuple(s.stop - s.start for s in worker_slice), dtype=local_data.dtype)
-            
+        # Create empty global array with correct shape
+        global_array = np.zeros(global_shape, dtype=local_data.dtype)
+        
+        # Get worker info
+        worker_id = jax.process_index()
+        start_shard, end_shard = get_worker_shards(worker_id)
+        
+        # Calculate this worker's slice of the global array
+        total_elements = np.prod(global_shape)
+        elements_per_worker = total_elements // 8  # 8 workers
+        start_idx = worker_id * elements_per_worker
+        end_idx = start_idx + elements_per_worker
+        
+        # Place local data into the correct slice of global array
+        flat_global = global_array.reshape(-1)
+        flat_local = local_data.reshape(-1)
+        flat_global[start_idx:end_idx] = flat_local
+        
+        # Create sharding for the global array
         sharding = jax.sharding.NamedSharding(mesh, sharding_spec)
+        
+        # Create globally consistent array using make_array_from_callback
+        def callback(idx):
+            return global_array[idx]
+            
         return jax.make_array_from_callback(global_shape, sharding, callback)
 
     # Group weights by layer
