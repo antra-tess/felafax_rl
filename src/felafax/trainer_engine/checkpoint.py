@@ -393,11 +393,23 @@ def load_llama_from_hf(
         sharding = jax.sharding.NamedSharding(mesh, sharding_spec)
         return jax.make_array_from_callback(global_shape, sharding, callback)
 
-    # Load weights into model structure
+    # Group weights by layer
+    layer_weights = {}
+    global_weights = {}
+    
     for key, value in accumulated_state_dict.items():
-        print(f"\nProcessing weight: {key}")
+        if any(x in key for x in ["self_attn", "mlp", "layernorm"]):
+            layer_idx = int(key.split('.')[2])
+            if layer_idx not in layer_weights:
+                layer_weights[layer_idx] = {}
+            layer_weights[layer_idx][key] = value
+        else:
+            global_weights[key] = value
+            
+    # First handle global weights (embeddings, norms, etc.)
+    print("\nProcessing global weights...")
+    for key, value in global_weights.items():
         if "embed_tokens" in key:
-            # Create sharded array from local data
             sharded_array = make_sharded_array(
                 value, 
                 value.shape,
@@ -408,34 +420,140 @@ def load_llama_from_hf(
                 model,
                 sharded_array
             )
+            print(f"Loaded {key}")
         elif "norm" in key:
+            sharded_array = make_sharded_array(
+                value,
+                value.shape,
+                PS()
+            )
             model = eqx.tree_at(
                 lambda m: m.model.norm.weight,
                 model,
-                jax.device_put(value, shardings["norm"])
+                sharded_array
             )
+            print(f"Loaded {key}")
         elif "lm_head" in key:
+            sharded_array = make_sharded_array(
+                value,
+                value.shape,
+                PS(("fsdp", "mp"))
+            )
             model = eqx.tree_at(
                 lambda m: m.lm_head.weight,
                 model,
-                jax.device_put(value, shardings["lm_head"])
+                sharded_array
             )
-        else:
-            # Handle layer weights
-            if any(x in key for x in ["self_attn", "mlp", "layernorm"]):
-                layer_idx = int(key.split('.')[2])
-                
-                # Determine which component this weight belongs to
-                for component in sharding_specs.keys():
-                    if component in key:
-                        sharding = shardings[component]
-                        target_fn = lambda m, i=layer_idx, c=component: _get_layer_weight(m, i, c)
-                        model = eqx.tree_at(
-                            target_fn,
-                            model,
-                            jax.device_put(value, sharding)
-                        )
-                        break
+            print(f"Loaded {key}")
+            
+    # Then handle layer weights one layer at a time
+    print("\nProcessing layer weights...")
+    for layer_idx in sorted(layer_weights.keys()):
+        print(f"\nLoading layer {layer_idx}...")
+        layer_dict = layer_weights[layer_idx]
+        
+        # Process attention weights
+        for key, value in layer_dict.items():
+            if "self_attn.q_proj" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS(("fsdp", "mp"))
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].self_attn.q_proj.weight,
+                    model,
+                    sharded_array
+                )
+            elif "self_attn.k_proj" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS(("fsdp", "mp"))
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].self_attn.k_proj.weight,
+                    model,
+                    sharded_array
+                )
+            elif "self_attn.v_proj" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS(("fsdp", "mp"))
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].self_attn.v_proj.weight,
+                    model,
+                    sharded_array
+                )
+            elif "self_attn.o_proj" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS(("mp", "fsdp"))
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].self_attn.o_proj.weight,
+                    model,
+                    sharded_array
+                )
+            elif "mlp.gate_proj" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS(("fsdp", "mp"))
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].mlp.gate_proj.weight,
+                    model,
+                    sharded_array
+                )
+            elif "mlp.up_proj" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS(("fsdp", "mp"))
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].mlp.up_proj.weight,
+                    model,
+                    sharded_array
+                )
+            elif "mlp.down_proj" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS(("mp", "fsdp"))
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].mlp.down_proj.weight,
+                    model,
+                    sharded_array
+                )
+            elif "input_layernorm" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS()
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].input_layernorm.weight,
+                    model,
+                    sharded_array
+                )
+            elif "post_attention_layernorm" in key:
+                sharded_array = make_sharded_array(
+                    value,
+                    value.shape,
+                    PS()
+                )
+                model = eqx.tree_at(
+                    lambda m: m.model.layers[layer_idx].post_attention_layernorm.weight,
+                    model,
+                    sharded_array
+                )
+        print(f"Layer {layer_idx} loaded")
 
     print("All weights loaded into model structure")
 
