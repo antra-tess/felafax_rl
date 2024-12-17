@@ -74,7 +74,16 @@ for shard_idx in range(start_shard, end_shard + 1):
 
 log("All shards loaded into memory")
 
-# Initialize JAX first
+# Import non-JAX dependencies first
+log("Importing core dependencies...")
+from datasets import load_dataset
+from transformers import LlamaConfig
+from felafax.trainer_engine.data.data import SFTDataset, create_dataloader, DatasetConfig
+from felafax.trainer_engine.trainer import Trainer, TrainerConfig
+from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
+log("Core dependencies imported")
+
+# Initialize JAX
 log(f"Setting JAX environment (process {process_id} of {num_processes})")
 os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
 os.environ['JAX_PROCESS_INDEX'] = str(process_id)
@@ -84,15 +93,6 @@ import jax
 log("Initializing JAX distributed...")
 jax.distributed.initialize()
 log("JAX distributed initialization complete")
-
-# Now import other dependencies
-log("Importing core dependencies...")
-from datasets import load_dataset
-from transformers import LlamaConfig
-from felafax.trainer_engine.data.data import SFTDataset, create_dataloader, DatasetConfig
-from felafax.trainer_engine.trainer import Trainer, TrainerConfig
-from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
-log("Core dependencies imported")
 
 # Load tokenizer
 log("Loading tokenizer...")
