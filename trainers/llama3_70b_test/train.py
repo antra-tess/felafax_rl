@@ -54,6 +54,8 @@ log("Loading config.json...")
 with open(os.path.join(local_path, "config.json")) as f:
     config_data = json.load(f)
     
+log(f"Original config rope_scaling: {config_data.get('rope_scaling', {})}")
+    
 # Add 'type' to rope_scaling if needed
 if 'rope_scaling' in config_data:
     config_data['rope_scaling'] = {
@@ -61,6 +63,7 @@ if 'rope_scaling' in config_data:
         'type': config_data['rope_scaling'].get('rope_type', 'linear')
     }
     log("Added 'type' field to rope_scaling configuration")
+    log(f"Updated config rope_scaling: {config_data['rope_scaling']}")
 
 log("Config loaded and updated successfully")
 
