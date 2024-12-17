@@ -324,7 +324,10 @@ def load_llama_from_hf(
     for key, value in global_weights.items():
         if "embed_tokens" in key:
             sharding = jax.sharding.NamedSharding(mesh, PS(("mp", "fsdp")))
+            print(f"  Sharding spec: {PS(('mp', 'fsdp'))}")
             weight_jax = jax.device_put(value, sharding)
+            print(f"  Device placement: {weight_jax.sharding.mesh}")
+            print(f"  Memory per device: {weight_size / mesh.size:.2f}MB (if sharded correctly)")
             model = eqx.tree_at(
                 lambda m: m.model.embed_tokens.weight,
                 model,
