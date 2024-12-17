@@ -43,3 +43,4 @@ done
 wait
 
 echo "Completed processing all workers"
+reset
