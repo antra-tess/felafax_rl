@@ -167,18 +167,22 @@ class LlamaLinear(eqx.Module):
         else:
             keys = jax.random.split(jax.random.PRNGKey(99), 4)
 
-        # Initialize weights on CPU to avoid TPU memory pressure
-        with jax.default_device(jax.devices("cpu")[0]):
-            # Use numpy for initial random values
-            weight_shape = (out_features, in_features)
-            weight_init = np.random.normal(0, 0.02, weight_shape)
-            self.weight = jnp.array(weight_init, dtype=self.param_dtype)
-            
-            if bias:
-                bias_init = np.random.normal(0, 0.02, (out_features,))
-                self.bias = jnp.array(bias_init, dtype=self.param_dtype)
-            else:
-                self.bias = None
+        # Initialize weights directly with JAX random
+        weight_shape = (out_features, in_features)
+        self.weight = jax.random.normal(
+            keys[0],
+            weight_shape,
+            dtype=self.param_dtype
+        ) * 0.02
+
+        if bias:
+            self.bias = jax.random.normal(
+                keys[1],
+                (out_features,),
+                dtype=self.param_dtype
+            ) * 0.02
+        else:
+            self.bias = None
 
         self.rank = rank
         self.alpha = alpha
