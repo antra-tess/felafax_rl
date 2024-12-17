@@ -324,37 +324,33 @@ def load_llama_from_hf(
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
-    # Copy embedding and output layers
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.embed_tokens.weight,
-        eqx_model,
-        torch_to_jax_float32(
-            hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))
-        ),
-    )
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.norm.weight,
-        eqx_model,
-        torch_to_jax_float32(hf_model.model.norm.weight, PS()),
-    )
-    eqx_model = eqx.tree_at(
-        lambda m: m.lm_head.weight,
-        eqx_model,
-        torch_to_jax(hf_model.lm_head.weight, PS(("fsdp", "mp"))),
-    )
-
-    def _copy_weights(from_hf_layer_name, to_eqx_layer, partition_spec, dtype):
-        """Copies weights from HF layer to JAX array.
-
-        Since transformer layers are stacked using vmap in LlamaModel (creating a leading layer dimension), we create an empty JAX array and copy weights layer-by-layer to match this stacked structure."""
-        weight_arr = jnp.empty(to_eqx_layer.shape, dtype=dtype)
-        torch_to_jax_converter = _make_torch_to_jax(dtype=dtype, mesh=mesh)
-
-        for i in range(hf_model.config.num_hidden_layers):
-            layer_path = from_hf_layer_name.split(".")
-            current = hf_model.model.layers[i]
-            for attr in layer_path:
-                current = getattr(current, attr)
+    print("Loading weights from accumulated state dict...")
+    
+    # Convert weights to JAX arrays with proper sharding
+    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
+    torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
+    
+    # Update model weights from accumulated state dict
+    for key, value in accumulated_state_dict.items():
+        if "embed_tokens" in key:
+            model = eqx.tree_at(
+                lambda m: m.model.embed_tokens.weight,
+                model,
+                torch_to_jax_float32(value, PS(("mp", "fsdp")))
+            )
+        elif "norm" in key:
+            model = eqx.tree_at(
+                lambda m: m.model.norm.weight,
+                model,
+                torch_to_jax_float32(value, PS())
+            )
+        elif "lm_head" in key:
+            model = eqx.tree_at(
+                lambda m: m.lm_head.weight,
+                model,
+                torch_to_jax(value, PS(("fsdp", "mp")))
+            )
+        # Add more weight loading logic here
 
             weight_arr = weight_arr.at[i].set(
                 torch_to_jax_converter(current.weight, partition_spec)
