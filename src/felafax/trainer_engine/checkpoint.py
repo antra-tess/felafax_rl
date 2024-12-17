@@ -273,30 +273,30 @@ def load_llama_from_hf(
     )
     print("Model config created")
 
-    # Load all shards into CPU memory
+    # Load all shards into CPU memory using pure Python/NumPy
     print("Loading weights into CPU memory...")
     accumulated_state_dict = {}
     for shard_idx in range(start_shard, end_shard + 1):
         shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
         shard_path = os.path.join(model_name, shard_file)
         print(f"Loading shard: {shard_path}")
-        with jax.default_device(jax.devices('cpu')[0]):
-            shard_dict = safetensors.torch.load_file(shard_path)
-            accumulated_state_dict.update(shard_dict)
-            del shard_dict  # Free memory immediately
+        shard_dict = safetensors.torch.load_file(shard_path)
+        # Convert tensors to NumPy arrays
+        shard_dict = {k: np.array(v) for k, v in shard_dict.items()}
+        accumulated_state_dict.update(shard_dict)
+        del shard_dict  # Free memory immediately
         print(f"Loaded shard {shard_idx} into CPU memory")
 
-    # Initialize model on CPU
-    print("Initializing model structure on CPU...")
-    with jax.default_device(jax.devices('cpu')[0]):
-        key = jax.random.PRNGKey(42)
-        model = LlamaForCausalLM(
-            model_config,
-            param_dtype=param_dtype,
-            compute_dtype=compute_dtype,
-            key=key,
-        )
-    print("Model structure initialized on CPU")
+    # Initialize model on TPU
+    print("Initializing model structure on TPU...")
+    key = jax.random.PRNGKey(42)
+    model = LlamaForCausalLM(
+        model_config,
+        param_dtype=param_dtype,
+        compute_dtype=compute_dtype,
+        key=key,
+    )
+    print("Model structure initialized on TPU")
 
     # Set up JAX conversion functions
     print("Setting up TPU transfer functions...")
@@ -323,24 +323,30 @@ def load_llama_from_hf(
     print("Transferring global weights...")
     for key, value in global_weights.items():
         if "embed_tokens" in key:
+            sharding = jax.sharding.NamedSharding(mesh, PS(("mp", "fsdp")))
+            weight_jax = jax.device_put(value, sharding)
             model = eqx.tree_at(
                 lambda m: m.model.embed_tokens.weight,
                 model,
-                torch_to_jax_float32(value, PS(("mp", "fsdp")))
+                weight_jax.astype(jnp.bfloat16)
             )
             print(f"Transferred {key}")
         elif "norm" in key:
+            sharding = jax.sharding.NamedSharding(mesh, PS())
+            weight_jax = jax.device_put(value, sharding)
             model = eqx.tree_at(
                 lambda m: m.model.norm.weight,
                 model,
-                torch_to_jax_float32(value, PS())
+                weight_jax.astype(jnp.bfloat16)
             )
             print(f"Transferred {key}")
         elif "lm_head" in key:
+            sharding = jax.sharding.NamedSharding(mesh, PS(("fsdp", "mp")))
+            weight_jax = jax.device_put(value, sharding)
             model = eqx.tree_at(
                 lambda m: m.lm_head.weight,
                 model,
-                torch_to_jax(value, PS(("fsdp", "mp")))
+                weight_jax.astype(param_dtype)
             )
             print(f"Transferred {key}")
             
