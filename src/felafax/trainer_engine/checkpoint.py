@@ -359,58 +359,76 @@ def load_llama_from_hf(
         # Process attention weights
         for key, value in layer_dict.items():
             if "self_attn.q_proj" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.self_attn.q_proj.weight[layer_idx],
                     model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
+                    weight_jax.astype(param_dtype)
                 )
             elif "self_attn.k_proj" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.self_attn.k_proj.weight[layer_idx],
                     model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
+                    weight_jax.astype(param_dtype)
                 )
             elif "self_attn.v_proj" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.self_attn.v_proj.weight[layer_idx],
                     model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
+                    weight_jax.astype(param_dtype)
                 )
             elif "self_attn.o_proj" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS("mp", "fsdp"))
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.self_attn.o_proj.weight[layer_idx],
                     model,
-                    torch_to_jax(value, PS("mp", "fsdp"))
+                    weight_jax.astype(param_dtype)
                 )
             elif "mlp.gate_proj" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.mlp.gate_proj.weight[layer_idx],
                     model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
+                    weight_jax.astype(param_dtype)
                 )
             elif "mlp.up_proj" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS("fsdp", "mp"))
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.mlp.up_proj.weight[layer_idx],
                     model,
-                    torch_to_jax(value, PS("fsdp", "mp"))
+                    weight_jax.astype(param_dtype)
                 )
             elif "mlp.down_proj" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS("mp", "fsdp"))
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.mlp.down_proj.weight[layer_idx],
                     model,
-                    torch_to_jax(value, PS("mp", "fsdp"))
+                    weight_jax.astype(param_dtype)
                 )
             elif "input_layernorm" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS())
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.input_layernorm.weight[layer_idx],
                     model,
-                    torch_to_jax_float32(value, PS())
+                    weight_jax.astype(jnp.bfloat16)
                 )
             elif "post_attention_layernorm" in key:
+                sharding = jax.sharding.NamedSharding(mesh, PS())
+                weight_jax = jax.device_put(value, sharding)
                 model = eqx.tree_at(
                     lambda m: m.model.layers.post_attention_layernorm.weight[layer_idx],
                     model,
-                    torch_to_jax_float32(value, PS())
+                    weight_jax.astype(jnp.bfloat16)
                 )
         
         # Clean up layer weights after transfer
