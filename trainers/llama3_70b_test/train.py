@@ -83,7 +83,7 @@ from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.models.llama3.jax.model import LlamaForCausalLM
 log("Core dependencies imported")
 
-# Initialize JAX
+# Initialize JAX immediately after imports
 log(f"Setting JAX environment (process {process_id} of {num_processes})")
 os.environ['JAX_PROCESS_COUNT'] = str(num_processes)
 os.environ['JAX_PROCESS_INDEX'] = str(process_id)
@@ -93,6 +93,10 @@ import jax
 log("Initializing JAX distributed...")
 jax.distributed.initialize()
 log("JAX distributed initialization complete")
+
+# Small delay to ensure all workers are synchronized
+import time
+time.sleep(1)
 
 # Load tokenizer
 log("Loading tokenizer...")
