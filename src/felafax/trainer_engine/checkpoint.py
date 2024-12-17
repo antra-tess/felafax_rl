@@ -251,17 +251,24 @@ def load_llama_from_hf(
     start_shard, end_shard = get_worker_shards(worker_id)
     print(f"Worker {worker_id} loading shards {start_shard}-{end_shard}")
 
-    # Load config and create model using HF's config class
-    print("Loading HF config...")
-    config = HFLlamaConfig.from_pretrained(model_name)
-    print("Creating HF model...")
-    hf_model = HFLlamaForCausalLM(config)
-    print("HF model created")
-    
-    # Convert to our config format for JAX model
-    print("Converting config to JAX format...")
-    model_config = create_llama_config_from_hf_model(hf_model)
-    print("Config converted to JAX format")
+    # Create our config directly from the loaded config data
+    print("Creating JAX model config...")
+    model_config = LlamaConfig(
+        vocab_size=config_data["vocab_size"],
+        hidden_size=config_data["hidden_size"],
+        intermediate_size=config_data["intermediate_size"],
+        num_hidden_layers=config_data["num_hidden_layers"],
+        num_attention_heads=config_data["num_attention_heads"],
+        num_key_value_heads=config_data["num_key_value_heads"],
+        max_position_embeddings=config_data["max_position_embeddings"],
+        rms_norm_eps=config_data["rms_norm_eps"],
+        rope_theta=config_data.get("rope_theta", 10000.0),
+        attention_bias=config_data.get("attention_bias", False),
+        lora_rank=lora_rank,
+        param_dtype=param_dtype,
+        compute_dtype=compute_dtype
+    )
+    print("JAX model config created")
 
     # Create state dict to accumulate weights
     accumulated_state_dict = {}
