@@ -330,23 +330,22 @@ def load_llama_from_hf(
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
     
-    # Load shards assigned to this worker
-    loaded_shards = {}
+    # Initialize state dict to accumulate weights
+    accumulated_state_dict = {}
+    
+    # Load and accumulate weights from each shard
     for shard_idx in range(start_shard, end_shard + 1):
         shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
         shard_path = os.path.join(model_name, shard_file)
         print(f"Loading shard: {shard_path}")
         shard_dict = safetensors.torch.load_file(shard_path)
-        loaded_shards[shard_idx] = shard_dict
-        print(f"Loaded shard {shard_idx} successfully")
-    
-    # Accumulate weights from loaded shards
-    accumulated_state_dict = {}
-    for shard_dict in loaded_shards.values():
+        
+        # Accumulate weights from this shard
         for key, value in shard_dict.items():
             accumulated_state_dict[key] = value
+        print(f"Loaded and accumulated shard {shard_idx} successfully")
     
-    # Now load from accumulated state dict
+    # Now load accumulated weights into model
     for key, value in accumulated_state_dict.items():
         for key, value in shard_dict.items():
             if "embed_tokens" in key:
