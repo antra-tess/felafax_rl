@@ -331,82 +331,80 @@ def load_llama_from_hf(
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
     
     # Update model weights from accumulated state dict
-    for shard_idx, shard_dict in loaded_shards.items():
+    for shard_idx, shard_dict in accumulated_state_dict.items():
         for key, value in shard_dict.items():
-        if "embed_tokens" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.embed_tokens.weight,
-                model,
-                torch_to_jax_float32(value, PS(("mp", "fsdp")))
-            )
-        elif "norm" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.norm.weight,
-                model,
-                torch_to_jax_float32(value, PS())
-            )
-        elif "lm_head" in key:
-            model = eqx.tree_at(
-                lambda m: m.lm_head.weight,
-                model,
-                torch_to_jax(value, PS(("fsdp", "mp")))
-            )
-        # Add more weight loading logic here
-
-        elif "self_attn.q_proj" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.self_attn.q_proj.weight,
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "self_attn.k_proj" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.self_attn.k_proj.weight,
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "self_attn.v_proj" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.self_attn.v_proj.weight,
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "self_attn.o_proj" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.self_attn.o_proj.weight,
-                model,
-                torch_to_jax(value, PS("mp", "fsdp"))
-            )
-        elif "mlp.gate_proj" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.mlp.gate_proj.weight,
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "mlp.up_proj" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.mlp.up_proj.weight,
-                model,
-                torch_to_jax(value, PS("fsdp", "mp"))
-            )
-        elif "mlp.down_proj" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.mlp.down_proj.weight,
-                model,
-                torch_to_jax(value, PS("mp", "fsdp"))
-            )
-        elif "input_layernorm" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.input_layernorm.weight,
-                model,
-                torch_to_jax_float32(value, PS())
-            )
-        elif "post_attention_layernorm" in key:
-            model = eqx.tree_at(
-                lambda m: m.model.layers.post_attention_layernorm.weight,
-                model,
-                torch_to_jax_float32(value, PS())
-            )
+            if "embed_tokens" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.embed_tokens.weight,
+                    model,
+                    torch_to_jax_float32(value, PS(("mp", "fsdp")))
+                )
+            elif "norm" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.norm.weight,
+                    model,
+                    torch_to_jax_float32(value, PS())
+                )
+            elif "lm_head" in key:
+                model = eqx.tree_at(
+                    lambda m: m.lm_head.weight,
+                    model,
+                    torch_to_jax(value, PS(("fsdp", "mp")))
+                )
+            elif "self_attn.q_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.self_attn.q_proj.weight,
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "self_attn.k_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.self_attn.k_proj.weight,
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "self_attn.v_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.self_attn.v_proj.weight,
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "self_attn.o_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.self_attn.o_proj.weight,
+                    model,
+                    torch_to_jax(value, PS("mp", "fsdp"))
+                )
+            elif "mlp.gate_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.mlp.gate_proj.weight,
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "mlp.up_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.mlp.up_proj.weight,
+                    model,
+                    torch_to_jax(value, PS("fsdp", "mp"))
+                )
+            elif "mlp.down_proj" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.mlp.down_proj.weight,
+                    model,
+                    torch_to_jax(value, PS("mp", "fsdp"))
+                )
+            elif "input_layernorm" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.input_layernorm.weight,
+                    model,
+                    torch_to_jax_float32(value, PS())
+                )
+            elif "post_attention_layernorm" in key:
+                model = eqx.tree_at(
+                    lambda m: m.model.layers.post_attention_layernorm.weight,
+                    model,
+                    torch_to_jax_float32(value, PS())
+                )
 
     return model, model_config
 
