@@ -376,15 +376,21 @@ def load_llama_from_hf(
     print("Weight shapes extracted")
 
     # Function to create sharded array from local data
-    def make_sharded_array(local_data, global_shape, sharding):
-        def callback(indices):
-            # Each worker returns its local slice of data
+    def make_sharded_array(local_data, global_shape, sharding_spec):
+        def callback(idx):
+            # Get worker info
             worker_id = jax.process_index()
             start_shard, end_shard = get_worker_shards(worker_id)
-            if worker_id == jax.process_index():
-                return local_data
-            return np.zeros(local_data.shape, dtype=local_data.dtype)
             
+            # Calculate which portion of the global array this worker owns
+            worker_slice = tuple(slice(s.start, s.stop) for s in idx)
+            
+            # Check if this index falls within our shard range
+            if worker_id == jax.process_index():
+                return local_data[worker_slice]
+            return np.zeros(tuple(s.stop - s.start for s in worker_slice), dtype=local_data.dtype)
+            
+        sharding = jax.sharding.NamedSharding(mesh, sharding_spec)
         return jax.make_array_from_callback(global_shape, sharding, callback)
 
     # Load weights into model structure
@@ -395,7 +401,7 @@ def load_llama_from_hf(
             sharded_array = make_sharded_array(
                 value, 
                 value.shape,
-                shardings["embed_tokens"]
+                PS(("mp", "fsdp"))
             )
             model = eqx.tree_at(
                 lambda m: m.model.embed_tokens.weight,
