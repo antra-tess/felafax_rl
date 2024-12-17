@@ -648,8 +648,14 @@ def load_llama_from_hf_unoptimized(
         print(f"Loaded shard {shard_idx} into CPU memory")
 
     # Load weights from accumulated state dict
-    print("Loading weights into model...")
+    total_shard_size = sum(v.nbytes for v in accumulated_state_dict.values()) / (1024**3)  # Size in GB
+    print(f"\nProcessing total accumulated weights: {total_shard_size:.2f}GB")
+    
     for key, value in accumulated_state_dict.items():
+        weight_size = value.nbytes / (1024**2)  # Size in MB
+        print(f"\nWeight {key}:")
+        print(f"  Shape: {value.shape}")
+        print(f"  Size: {weight_size:.2f}MB")
         if "embed_tokens" in key:
             eqx_model = eqx.tree_at(
                 lambda t: t.model.embed_tokens.weight,
