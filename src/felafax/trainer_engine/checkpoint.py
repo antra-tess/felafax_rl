@@ -386,14 +386,22 @@ def load_llama_from_hf(
     model = eqx.combine(empty_arrays, model_static)
     print("Model updated with empty arrays")
 
-    # Now load actual weights from shards
+    # Broadcast accumulated_state_dict from worker 0 to all workers
+    print("Broadcasting weights from worker 0...")
+    accumulated_state_dict = jax.experimental.multihost_utils.broadcast_one_to_all(accumulated_state_dict)
+    print("Weights broadcast complete")
+
+    # Now all workers have the same state dict, load weights
     for key, value in accumulated_state_dict.items():
         print(f"\nProcessing weight: {key}")
         if "embed_tokens" in key:
+            # Create global array view first
+            global_array = jnp.array(value)
+            # Then device_put with sharding
             model = eqx.tree_at(
                 lambda m: m.model.embed_tokens.weight,
                 model,
-                jax.device_put(value, shardings["embed_tokens"])
+                jax.device_put(global_array, shardings["embed_tokens"])
             )
         elif "norm" in key:
             model = eqx.tree_at(
