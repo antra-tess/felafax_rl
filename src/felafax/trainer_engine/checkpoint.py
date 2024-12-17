@@ -630,8 +630,22 @@ def load_llama_from_hf_unoptimized(
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
-    # Copy weights from HF model to Equinox model
+    # Load shards into memory
+    print("Loading weights into CPU memory...")
+    accumulated_state_dict = {}
+    for shard_idx in range(start_shard, end_shard + 1):
+        shard_file = f"model-{shard_idx:05d}-of-00030.safetensors"
+        shard_path = os.path.join(model_name, shard_file)
+        print(f"Loading shard: {shard_path}")
+        shard_dict = safetensors.torch.load_file(shard_path)
+        # Convert tensors to NumPy arrays, handling bfloat16
+        shard_dict = {k: v.to(torch.float32).numpy() for k, v in shard_dict.items()}
+        accumulated_state_dict.update(shard_dict)
+        del shard_dict  # Free memory immediately
+        print(f"Loaded shard {shard_idx} into CPU memory")
+
     # Load weights from accumulated state dict
+    print("Loading weights into model...")
     for key, value in accumulated_state_dict.items():
         if "embed_tokens" in key:
             eqx_model = eqx.tree_at(
