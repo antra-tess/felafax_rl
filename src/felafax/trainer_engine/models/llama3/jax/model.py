@@ -149,6 +149,10 @@ class LlamaLinear(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
 
+    # Class variable to track total memory allocated
+    total_memory_mb = 0
+    device_memory = {}  # Track per-device memory
+
     def __init__(
         self,
         in_features,
@@ -165,14 +169,31 @@ class LlamaLinear(eqx.Module):
         
         # Calculate memory requirements
         weight_size = out_features * in_features * jnp.dtype(param_dtype).itemsize / (1024 * 1024)  # Size in MB
+        
+        # Get current device
+        device = jax.devices()[0]  # This will need to be updated for proper device tracking
+        device_id = str(device)
+        
+        # Update device memory tracking
+        if device_id not in LlamaLinear.device_memory:
+            LlamaLinear.device_memory[device_id] = 0
+        LlamaLinear.device_memory[device_id] += weight_size
+        LlamaLinear.total_memory_mb += weight_size
+        
         print(f"Allocating weight matrix of size {out_features}x{in_features} = {weight_size:.2f}MB")
+        print(f"Total memory allocated: {LlamaLinear.total_memory_mb:.2f}MB")
+        print(f"Device {device_id} memory: {LlamaLinear.device_memory[device_id]:.2f}MB")
         
         # Initialize with zeros since we'll load actual weights from shards
         self.weight = jnp.zeros((out_features, in_features), dtype=self.param_dtype)
         
         if bias:
             bias_size = out_features * jnp.dtype(param_dtype).itemsize / (1024 * 1024)  # Size in MB
+            LlamaLinear.total_memory_mb += bias_size
+            LlamaLinear.device_memory[device_id] += bias_size
             print(f"Allocating bias vector of size {out_features} = {bias_size:.2f}MB")
+            print(f"Total memory allocated: {LlamaLinear.total_memory_mb:.2f}MB")
+            print(f"Device {device_id} memory: {LlamaLinear.device_memory[device_id]:.2f}MB")
             self.bias = jnp.zeros((out_features,), dtype=self.param_dtype)
         else:
             self.bias = None
