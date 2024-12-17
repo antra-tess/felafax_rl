@@ -390,14 +390,15 @@ def load_llama_from_hf(
         this_device = host_devices[0]  # Assuming one device per host for now
         device_slice = devices_indices[this_device]
         
-        # Ensure local_data matches the device's slice shape
-        slice_shape = tuple(s.stop - s.start for s in device_slice)
-        assert local_data.shape == slice_shape, f"Local data shape {local_data.shape} doesn't match device slice shape {slice_shape}"
+        # Create empty global array
+        global_array = np.zeros(global_shape, dtype=local_data.dtype)
         
-        def callback(_):
-            # Return the entire local shard - JAX will call this once per device
-            # with the appropriate slice for that device
-            return local_data
+        # Place local data into the correct slice of global array
+        global_array[device_slice] = local_data
+        
+        def callback(idx):
+            # Return the slice of the global array corresponding to the requested indices
+            return global_array[idx]
             
         return jax.make_array_from_callback(global_shape, sharding, callback)
 
