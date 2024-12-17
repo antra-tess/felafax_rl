@@ -323,6 +323,7 @@ def load_llama_from_hf(
     print("Transferring global weights...")
     for key, value in global_weights.items():
         if "embed_tokens" in key:
+            weight_size = value.nbytes / (1024 * 1024)  # Size in MB
             sharding = jax.sharding.NamedSharding(mesh, PS(("mp", "fsdp")))
             print(f"  Sharding spec: {PS(('mp', 'fsdp'))}")
             weight_jax = jax.device_put(value, sharding)
