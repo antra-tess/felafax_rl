@@ -252,11 +252,16 @@ def load_llama_from_hf(
     print(f"Worker {worker_id} loading shards {start_shard}-{end_shard}")
 
     # Load config and create model using HF's config class
+    print("Loading HF config...")
     config = HFLlamaConfig.from_pretrained(model_name)
+    print("Creating HF model...")
     hf_model = HFLlamaForCausalLM(config)
+    print("HF model created")
     
     # Convert to our config format for JAX model
+    print("Converting config to JAX format...")
     model_config = create_llama_config_from_hf_model(hf_model)
+    print("Config converted to JAX format")
 
     # Create state dict to accumulate weights
     accumulated_state_dict = {}
@@ -279,11 +284,14 @@ def load_llama_from_hf(
         # Clean up shard dict after accumulating
         del shard_dict
 
-    # Load accumulated weights into model
+    print("Loading accumulated weights into model...")
     hf_model.load_state_dict(accumulated_state_dict, strict=False)
+    print("Weights loaded successfully")
     
     # Clean up accumulated state dict to free memory
+    print("Cleaning up accumulated state dict...")
     del accumulated_state_dict
+    print("Memory cleanup complete")
 
     # Create config and initialize Equinox model
     model_config = create_llama_config_from_hf_model(hf_model)
