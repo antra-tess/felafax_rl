@@ -380,46 +380,24 @@ def load_llama_from_hf(
         # Create sharding for the global array
         sharding = jax.sharding.NamedSharding(mesh, sharding_spec)
         
-        # Get worker info
-        worker_id = jax.process_index()
+        # Get device mapping information
+        devices_indices = sharding.devices_indices_map()
         
-        # Calculate proper slices based on sharding spec
-        def get_slice_for_worker(worker_id, global_shape, sharding):
-            # Get mesh axes from sharding spec
-            mesh_axes = sharding.spec
-            
-            # Calculate slice for each dimension
-            slices = []
-            for dim_size, dim_spec in zip(global_shape, mesh_axes):
-                if dim_spec == "mp":
-                    # Model parallel dimension - split across TPU cores (4)
-                    chunk_size = dim_size // 4
-                    start = (worker_id % 4) * chunk_size
-                    end = start + chunk_size
-                    slices.append(slice(start, end))
-                elif dim_spec == "fsdp":
-                    # FSDP dimension - split across workers (8)
-                    chunk_size = dim_size // 8
-                    start = (worker_id // 4) * chunk_size
-                    end = start + chunk_size
-                    slices.append(slice(start, end))
-                else:
-                    # No sharding on this dimension
-                    slices.append(slice(0, dim_size))
-            return tuple(slices)
+        # Find this host's devices
+        host_devices = [d for d in jax.devices() if d.process_index == jax.process_index()]
         
-        # Get this worker's slice of the global array
-        worker_slice = get_slice_for_worker(worker_id, global_shape, sharding)
+        # Get this device's slice from the mapping
+        this_device = host_devices[0]  # Assuming one device per host for now
+        device_slice = devices_indices[this_device]
         
-        # Create callback function for make_array_from_callback
-        def callback(idx):
-            # Check if these indices belong to this worker
-            if all(s.start <= i < s.stop for s, i in zip(worker_slice, idx)):
-                # Map global indices to local indices
-                local_idx = tuple(i - s.start for i, s in zip(idx, worker_slice))
-                return local_data[local_idx]
-            # Return zeros for indices that don't belong to this worker
-            return np.zeros((), dtype=local_data.dtype)
+        # Ensure local_data matches the device's slice shape
+        slice_shape = tuple(s.stop - s.start for s in device_slice)
+        assert local_data.shape == slice_shape, f"Local data shape {local_data.shape} doesn't match device slice shape {slice_shape}"
+        
+        def callback(_):
+            # Return the entire local shard - JAX will call this once per device
+            # with the appropriate slice for that device
+            return local_data
             
         return jax.make_array_from_callback(global_shape, sharding, callback)
 
